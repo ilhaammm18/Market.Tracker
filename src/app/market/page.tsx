@@ -10,6 +10,7 @@ import { CompareAndSimulator } from "@/components/CompareAndSimulator";
 import { MarketNewsSection } from "@/components/MarketNewsSection";
 import { MarketExplorer } from "@/components/MarketExplorer";
 import { WatchlistDrawer } from "@/components/WatchlistDrawer";
+import { PortfolioDrawer } from "@/components/PortfolioDrawer";
 import { ApiSettingsModal } from "@/components/ApiSettingsModal";
 import { Footer } from "@/components/Footer";
 import {
@@ -17,9 +18,15 @@ import {
   TimeFrame,
   TickerTapeItem,
   NavSectionId,
+  PortfolioItem,
 } from "@/types/stock";
 import { MOCK_STOCKS, INITIAL_TICKER_TAPE } from "@/data/mockStocks";
 import { formatCurrency } from "@/lib/utils";
+import {
+  loadPortfolio,
+  savePortfolio,
+  DEFAULT_PORTFOLIO_ITEMS,
+} from "@/lib/portfolio";
 
 function MarketTerminalContent() {
   const searchParams = useSearchParams();
@@ -52,7 +59,11 @@ function MarketTerminalContent() {
     "NVDA",
     "BTC",
   ]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>(
+    DEFAULT_PORTFOLIO_ITEMS
+  );
   const [watchlistOpen, setWatchlistOpen] = useState<boolean>(false);
+  const [portfolioOpen, setPortfolioOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [isLiveUpdating] = useState<boolean>(true);
   const [activeSection, setActiveSection] = useState<NavSectionId>("overview");
@@ -64,7 +75,7 @@ function MarketTerminalContent() {
     }
   }, [queryTicker, activeTicker]);
 
-  // Load watchlist from LocalStorage on mount
+  // Load watchlist & portfolio from LocalStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -78,8 +89,16 @@ function MarketTerminalContent() {
       } catch {
         // Fallback
       }
+
+      const loadedPortfolio = loadPortfolio();
+      setPortfolio(loadedPortfolio);
     }
   }, []);
+
+  const handleUpdatePortfolio = (nextItems: PortfolioItem[]) => {
+    setPortfolio(nextItems);
+    savePortfolio(nextItems);
+  };
 
   // Scroll-spy for 01 / 04 — 04 / 04 navigation indicator
   useEffect(() => {
@@ -196,7 +215,7 @@ function MarketTerminalContent() {
             const loadedStock: StockData = json.stock;
             setStock(loadedStock);
 
-            // Cache in knownStocks for Watchlist & Explorer
+            // Cache in knownStocks for Watchlist, Portfolio & Explorer
             setKnownStocks((prev) => ({
               ...prev,
               [loadedStock.ticker]: loadedStock,
@@ -312,12 +331,14 @@ function MarketTerminalContent() {
 
   return (
     <main className="min-h-screen bg-[#040914] text-slate-100 flex flex-col justify-between selection:bg-[#F5B700] selection:text-navy-950">
-      {/* 1. Header Navigation with Interactive 01/04 Indicator & Global Search */}
+      {/* 1. Header Navigation with Interactive 01/04 Indicator, Portfolio & Global Search */}
       <HeaderNav
         activeStock={stock}
         onSelectStock={handleSelectStock}
         watchlistCount={watchlist.length}
         onOpenWatchlist={() => setWatchlistOpen(true)}
+        portfolioCount={portfolio.length}
+        onOpenPortfolio={() => setPortfolioOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
         isLiveUpdating={isLiveUpdating}
         activeSection={activeSection}
@@ -359,6 +380,15 @@ function MarketTerminalContent() {
       />
 
       {/* Drawers and Modals */}
+      <PortfolioDrawer
+        isOpen={portfolioOpen}
+        onClose={() => setPortfolioOpen(false)}
+        portfolio={portfolio}
+        knownStocks={knownStocks}
+        onUpdatePortfolio={handleUpdatePortfolio}
+        onSelectStock={handleSelectStock}
+      />
+
       <WatchlistDrawer
         isOpen={watchlistOpen}
         onClose={() => setWatchlistOpen(false)}
