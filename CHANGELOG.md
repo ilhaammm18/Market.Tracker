@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.4.0] - 2026-12-05
+
+### Added
+- **Home Portfolio Summary Widget (`src/components/PortfolioSummaryCard.tsx`, `src/app/page.tsx`)**:
+  - Created a compact glassmorphic `PortfolioSummaryCard` banner on the Landing Page displaying real-time Total Portfolio Equity (IDR), Total Floating PnL (`Rp` and `%`), active asset count, segmented allocation bar, and interactive asset chips with a direct **"Kelola Portofolio"** drawer trigger.
+- **Asset Class Filter Tabs & Subtotal Analytics (`src/lib/portfolio.ts`, `src/components/PortfolioDrawer.tsx`)**:
+  - Added category filtering (`ALL`, `IDX`, `US / Global`, `CRYPTO`) inside `PortfolioDrawer` with automatic per-category equity and PnL subtotal calculation.
+- **Portfolio JSON & CSV Export Utilities (`src/lib/portfolio.ts`, `src/components/PortfolioDrawer.tsx`)**:
+  - Implemented one-click **Export JSON** and **Export CSV** download actions in the drawer footer with instant download confirmation feedback.
+
+### Changed
+- **Mobile-First Responsive UI/UX Optimization (`HeaderNav.tsx`, `PortfolioDrawer.tsx`, `MarketExplorer.tsx`, `StockChart.tsx`)**:
+  - Refined touch targets (`min-h-[38px]` / `min-h-[42px]`), compact spacing, and adaptive full-width drawer layout on viewports `< 640px`.
+  - Prevented horizontal card/table overflow in `MarketExplorer` and added dynamic viewport-aware chart height scaling (`175px` mobile / `200px` desktop) in `StockChart`.
+
+---
+
 ## [1.3.0] - 2026-12-01
 
 ### Added

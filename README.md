@@ -11,7 +11,7 @@
 [![Framer Motion](https://img.shields.io/badge/Framer_Motion-11.11-F5B700?style=for-the-badge&logo=framer&logoColor=black)](https://www.framer.com/motion/)
 [![Lightweight Charts](https://img.shields.io/badge/Lightweight_Charts-5.3-10B981?style=for-the-badge&logo=tradingview&logoColor=white)](https://www.tradingview.com/lightweight-charts/)
 [![Yahoo Finance API](https://img.shields.io/badge/Yahoo_Finance-v8_Live_API-720E9E?style=for-the-badge)](https://finance.yahoo.com/)
-[![Version](https://img.shields.io/badge/Version-1.3.0-F5B700?style=for-the-badge)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-1.4.0-F5B700?style=for-the-badge)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/License-MIT-emerald?style=for-the-badge)](#contributing--author)
 
 ---
@@ -100,10 +100,11 @@ Enam kartu metrik fundamental & statistik pasar yang dihidrasi secara dinamis da
 - **Persistent Watchlist (`WatchlistDrawer.tsx`)**: Simpan saham favorit ke dalam *slide-out drawer* yang tersimpan permanen di `localStorage`.
 - **Live Financial News (`MarketNewsSection.tsx`)**: Menampilkan kartu berita terkini terkait emiten yang sedang dianalisis lengkap dengan judul, nama penerbit, waktu rilis relatif, tag ticker terkait, dan tautan langsung ke artikel sumber.
 
-### 7. 💼 Multi-Asset Portfolio & Multi-Currency PnL Tracker (`PortfolioDrawer.tsx` & `portfolio.ts`)
-- **Auto-IDR FX Valuation**: Menghitung total nilai ekuitas portofolio dan modal beli gabungan lintas mata uang (`IDR`, `USD`, `AUD`, `KRW`) dengan konversi otomatis ke ekuivalen Rupiah (`IDR`).
+### 7. 💼 Multi-Asset Portfolio & Multi-Currency PnL Tracker (`PortfolioDrawer.tsx`, `PortfolioSummaryCard.tsx` & `portfolio.ts`)
+- **Home Portfolio Overview Widget (`PortfolioSummaryCard.tsx`)**: Menampilkan ringkasan cepat Total Ekuitas (IDR), Floating PnL, bar alokasi, dan chip aset langsung di halaman utama.
+- **Auto-IDR FX Valuation & Category Filter**: Menghitung nilai ekuitas lintas mata uang (`IDR`, `USD`, `AUD`, `KRW`) ke ekuivalen `IDR`, dilengkapi tab filter kategori aset (`ALL`, `IDX`, `US / Global`, `CRYPTO`) beserta subtotal per kategori.
 - **Real-Time Floating PnL & Allocation Bar**: Menampilkan keuntungan/kerugian mengambang (*Unrealized PnL* dalam `Rp` dan `%`) baik secara agregat maupun per aset, dilengkapi *segmented progress bar* bobot alokasi portofolio.
-- **Position Management & LocalStorage Persistence**: Mendukung penambahan posisi baru, perhitungan *weighted average buy price* otomatis saat menambah muatan pada ticker yang sama, edit/hapus posisi, serta penyimpanan lokal permanen dengan 3 aset *seed default* (`BBCA.JK`, `NVDA`, `BTC-USD`).
+- **Position Management, JSON/CSV Export & LocalStorage**: Mendukung tambah/average/edit/hapus posisi, penyimpanan permanen di `localStorage` dengan 3 aset *seed default* (`BBCA.JK`, `NVDA`, `BTC-USD`), serta ekspor laporan portofolio ke format **JSON** dan **CSV**.
 
 ---
 
@@ -169,7 +170,8 @@ Market.Tracker/
 │   │   ├── LandingSection.tsx        # Komponen utama Landing Page (Hero, Live Snapshot, Platform Capabilities)
 │   │   ├── MarketExplorer.tsx        # Eksplorasi saham dengan filter regional (ALL, IDX, US, KRX, ASX, CRYPTO)
 │   │   ├── MarketNewsSection.tsx     # Seksi 04/04: Daftar kartu berita pasar terkini untuk saham aktif
-│   │   ├── PortfolioDrawer.tsx       # Slide-over drawer manajemen portofolio multi-aset & kalkulasi PnL IDR
+│   │   ├── PortfolioDrawer.tsx       # Slide-over drawer manajemen portofolio, filter kategori, & ekspor JSON/CSV
+│   │   ├── PortfolioSummaryCard.tsx  # Widget ringkasan ekuitas portofolio & PnL cepat di halaman beranda
 │   │   ├── StockChart.tsx            # Komponen grafik lightweight-charts (Area, Candle, SMA 20, EMA 50, RSI 14)
 │   │   └── WatchlistDrawer.tsx       # Panel slide-out daftar pantauan saham berbasis LocalStorage
 │   ├── data/
@@ -180,7 +182,7 @@ Market.Tracker/
 │   │   └── utils.ts                  # Formatter mata uang, pembulatan IDR/KRW, & generator Dynamic Insight
 │   └── types/
 │       └── stock.ts                  # Definisi interface TypeScript (StockData, StockPricePoint, PortfolioItem, dll.)
-├── CHANGELOG.md                      # Catatan riwayat rilis versi v1.0.0 hingga v1.3.0
+├── CHANGELOG.md                      # Catatan riwayat rilis versi v1.0.0 hingga v1.4.0
 ├── next.config.mjs                   # Konfigurasi Next.js (transpilePackages: lightweight-charts & fancy-canvas)
 ├── package.json                      # Metadata proyek, scripts, dan daftar dependencies
 ├── postcss.config.js                 # Konfigurasi PostCSS & Autoprefixer
@@ -269,7 +271,8 @@ Market.Tracker/
 
 ## 🗺️ Future Roadmap
 
-- [x] **Multi-Asset Portfolio PnL Tracker**: Pencatatan transaksi beli/jual multi-mata uang dengan kalkulasi *Average Price*, *Unrealized PnL*, dan alokasi aset.
+- [x] **Multi-Asset Portfolio PnL Tracker**: Pencatatan transaksi beli/jual multi-mata uang dengan kalkulasi *Average Price*, *Unrealized PnL*, filter kategori, dan ekspor JSON/CSV.
+- [x] **Mobile-First Responsive UI & Home Portfolio Widget**: Optimasi *touch-target*, tinggi grafik adaptif di layar ponsel, serta widget ringkasan portofolio di beranda.
 - [ ] **Enhanced Global Command Palette (`Ctrl+K`)**: Aksi cepat melalui keyboard untuk mengganti *timeframe*, mengaktifkan indikator SMA/EMA, dan menavigasi seksi halaman.
 - [ ] **Additional Technical Oscillators**: Penambahan indikator *Bollinger Bands (20, 2)* dan *MACD (12, 26, 9)* pada kanvas `lightweight-charts`.
 - [ ] **Cloud Sync & Price Alerts**: Sinkronisasi *Watchlist* lintas perangkat dan notifikasi browser saat harga menyentuh area *Support/Resistance* 52-Minggu.
