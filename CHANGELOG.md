@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.5.0] - 2026-12-08
+
+### Added
+- **Portfolio Risk Allocation & Rebalancing Analytics (`src/types/stock.ts`, `src/lib/portfolio.ts`, `src/components/PortfolioAllocationPanel.tsx`)**:
+  - Added 3 target risk profiles (**Moderate**, **Volatile**, **Aggressive**) with preset target weight benchmarks across `IDX`, `US / Global`, and `CRYPTO`.
+  - Built `calculatePortfolioRebalancing()` to compute actual asset weights, target deviations, alignment Health Score (`0–100%`), `Overweight` / `Underweight` / `On Target` status, and exact nominal IDR buy/trim rebalancing suggestions.
+  - Created interactive `PortfolioAllocationPanel` integrated directly inside `PortfolioDrawer`.
+- **JSON Portfolio Import & Restore (`src/lib/portfolio.ts`, `src/components/PortfolioDrawer.tsx`)**:
+  - Added strict JSON schema validation and parsing via `parsePortfolioImportJSON()` and merge/replace reconciliation via `applyPortfolioImport()`.
+  - Added **Import JSON** upload controls in `PortfolioDrawer` supporting both **Merge** (weighted-average combination) and **Replace** (full overwrite) modes with instant success/error validation feedback.
+- **Smart Price Alerts (`src/lib/alerts.ts`, `src/components/WatchlistDrawer.tsx`, `src/components/HeaderNav.tsx`)**:
+  - Built `localStorage`-backed target price alert management (`target_buy ≤` and `target_sell ≥`) with live market price evaluation (`evaluatePriceAlerts`) and distance-to-target tracking.
+  - Upgraded `WatchlistDrawer` with a mobile-first tabbed interface for managing Watchlist stocks and Smart Price Alerts (create, inspect live status, delete, and one-click bell shortcut per watched ticker).
+  - Connected live alert evaluation in `src/app/page.tsx` and `src/app/market/page.tsx` to display a pulsing notification badge in `HeaderNav` whenever one or more assets hit their target price.
+
+---
+
 ## [1.4.0] - 2026-12-05
 
 ### Added
