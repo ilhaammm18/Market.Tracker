@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { HeaderNav } from "@/components/HeaderNav";
 import { GlobalTickerTape } from "@/components/GlobalTickerTape";
@@ -19,6 +19,7 @@ import {
   TickerTapeItem,
   NavSectionId,
   PortfolioItem,
+  PriceAlertItem,
 } from "@/types/stock";
 import { MOCK_STOCKS, INITIAL_TICKER_TAPE } from "@/data/mockStocks";
 import { formatCurrency } from "@/lib/utils";
@@ -27,6 +28,13 @@ import {
   savePortfolio,
   DEFAULT_PORTFOLIO_ITEMS,
 } from "@/lib/portfolio";
+import {
+  loadPriceAlerts,
+  savePriceAlerts,
+  evaluatePriceAlerts,
+  countTriggeredAlerts,
+  DEFAULT_PRICE_ALERTS,
+} from "@/lib/alerts";
 
 function MarketTerminalContent() {
   const searchParams = useSearchParams();
@@ -62,6 +70,9 @@ function MarketTerminalContent() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>(
     DEFAULT_PORTFOLIO_ITEMS
   );
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlertItem[]>(
+    DEFAULT_PRICE_ALERTS
+  );
   const [watchlistOpen, setWatchlistOpen] = useState<boolean>(false);
   const [portfolioOpen, setPortfolioOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
@@ -75,7 +86,7 @@ function MarketTerminalContent() {
     }
   }, [queryTicker, activeTicker]);
 
-  // Load watchlist & portfolio from LocalStorage on mount
+  // Load watchlist, portfolio & price alerts from LocalStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -92,12 +103,42 @@ function MarketTerminalContent() {
 
       const loadedPortfolio = loadPortfolio();
       setPortfolio(loadedPortfolio);
+
+      const loadedAlerts = loadPriceAlerts();
+      setPriceAlerts(loadedAlerts);
     }
   }, []);
+
+  const evaluatedAlerts = useMemo(
+    () => evaluatePriceAlerts(priceAlerts, knownStocks),
+    [priceAlerts, knownStocks]
+  );
+
+  const triggeredAlertsCount = useMemo(
+    () => countTriggeredAlerts(evaluatedAlerts),
+    [evaluatedAlerts]
+  );
 
   const handleUpdatePortfolio = (nextItems: PortfolioItem[]) => {
     setPortfolio(nextItems);
     savePortfolio(nextItems);
+  };
+
+  const handleAddAlert = (alertInput: Omit<PriceAlertItem, "id" | "createdAt">) => {
+    const newAlert: PriceAlertItem = {
+      ...alertInput,
+      id: `alert-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const nextAlerts = [newAlert, ...priceAlerts];
+    setPriceAlerts(nextAlerts);
+    savePriceAlerts(nextAlerts);
+  };
+
+  const handleRemoveAlert = (id: string) => {
+    const nextAlerts = priceAlerts.filter((a) => a.id !== id);
+    setPriceAlerts(nextAlerts);
+    savePriceAlerts(nextAlerts);
   };
 
   // Scroll-spy for 01 / 04 — 04 / 04 navigation indicator
@@ -331,11 +372,12 @@ function MarketTerminalContent() {
 
   return (
     <main className="min-h-screen bg-[#040914] text-slate-100 flex flex-col justify-between selection:bg-[#F5B700] selection:text-navy-950">
-      {/* 1. Header Navigation with Interactive 01/04 Indicator, Portfolio & Global Search */}
+      {/* 1. Header Navigation with Interactive 01/04 Indicator, Portfolio, Alerts & Global Search */}
       <HeaderNav
         activeStock={stock}
         onSelectStock={handleSelectStock}
         watchlistCount={watchlist.length}
+        triggeredAlertsCount={triggeredAlertsCount}
         onOpenWatchlist={() => setWatchlistOpen(true)}
         portfolioCount={portfolio.length}
         onOpenPortfolio={() => setPortfolioOpen(true)}
@@ -396,6 +438,9 @@ function MarketTerminalContent() {
         knownStocks={knownStocks}
         onSelectStock={handleSelectStock}
         onRemoveFromWatchlist={handleRemoveFromWatchlist}
+        alerts={evaluatedAlerts}
+        onAddAlert={handleAddAlert}
+        onRemoveAlert={handleRemoveAlert}
       />
 
       <ApiSettingsModal

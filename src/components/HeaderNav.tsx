@@ -18,6 +18,7 @@ import {
   Home,
   LineChart,
   Briefcase,
+  BellRing,
 } from "lucide-react";
 import {
   StockData,
@@ -32,6 +33,7 @@ interface HeaderNavProps {
   activeStock: StockData;
   onSelectStock: (ticker: string) => void;
   watchlistCount?: number;
+  triggeredAlertsCount?: number;
   onOpenWatchlist?: () => void;
   portfolioCount?: number;
   onOpenPortfolio?: () => void;
@@ -77,6 +79,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   activeStock,
   onSelectStock,
   watchlistCount = 0,
+  triggeredAlertsCount = 0,
   onOpenWatchlist,
   portfolioCount = 0,
   onOpenPortfolio,
@@ -431,19 +434,35 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               </button>
             )}
 
-            {/* Watchlist Quick Button */}
+            {/* Watchlist & Smart Price Alerts Quick Button */}
             {onOpenWatchlist && (
               <button
                 onClick={onOpenWatchlist}
-                className="relative min-h-[38px] min-w-[38px] p-2 sm:p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#F5B700] flex items-center justify-center transition-all"
-                title="Buka Watchlist"
+                className={`relative min-h-[38px] min-w-[38px] p-2 sm:p-2.5 rounded-xl border flex items-center justify-center transition-all ${
+                  triggeredAlertsCount > 0
+                    ? "bg-rose-500/15 hover:bg-rose-500/25 border-rose-500/40 text-rose-300"
+                    : "bg-white/[0.04] hover:bg-white/[0.08] border-white/[0.08] text-white/70 hover:text-[#F5B700]"
+                }`}
+                title={
+                  triggeredAlertsCount > 0
+                    ? `${triggeredAlertsCount} Target Harga Tercapai! Klik untuk melihat Watchlist & Alerts`
+                    : "Buka Watchlist & Smart Price Alerts"
+                }
               >
-                <Star className="w-4 h-4" />
-                {watchlistCount > 0 && (
+                {triggeredAlertsCount > 0 ? (
+                  <BellRing className="w-4 h-4 animate-bounce" />
+                ) : (
+                  <Star className="w-4 h-4" />
+                )}
+                {triggeredAlertsCount > 0 ? (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white font-black text-[10px] flex items-center justify-center shadow-rose ring-2 ring-[#040914]">
+                    {triggeredAlertsCount}
+                  </span>
+                ) : watchlistCount > 0 ? (
                   <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#F5B700] text-navy-950 font-bold text-[10px] flex items-center justify-center">
                     {watchlistCount}
                   </span>
-                )}
+                ) : null}
               </button>
             )}
 
