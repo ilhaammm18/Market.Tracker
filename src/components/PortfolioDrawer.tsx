@@ -250,41 +250,41 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
             className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm"
           />
 
-          {/* Slide-over Drawer Panel */}
+          {/* Slide-over Drawer Panel (Full-width on mobile, max-w-lg on tablet/desktop) */}
           <motion.aside
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 26, stiffness: 240 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-[#071326]/95 border-l border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between overflow-hidden"
+            className="fixed right-0 top-0 bottom-0 z-50 w-full sm:max-w-lg bg-[#071326]/95 border-l border-white/10 shadow-2xl backdrop-blur-2xl flex flex-col justify-between overflow-hidden"
           >
             {/* 1. Drawer Header */}
-            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#040914]/60">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[#F5B700]/15 text-[#F5B700] border border-[#F5B700]/30 shadow-gold">
-                  <Briefcase className="w-5 h-5" />
+            <div className="px-4 py-3.5 sm:p-5 border-b border-white/10 flex items-center justify-between bg-[#040914]/60">
+              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-[#F5B700]/15 text-[#F5B700] border border-[#F5B700]/30 shadow-gold shrink-0">
+                  <Briefcase className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-white text-base tracking-tight">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-white text-sm sm:text-base tracking-tight truncate">
                       Multi-Asset Portfolio & PnL
                     </h3>
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                    <span className="text-[9px] sm:text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
                       AUTO-IDR FX
                     </span>
                   </div>
-                  <p className="text-xs text-white/50 font-mono">
+                  <p className="text-[11px] sm:text-xs text-white/50 font-mono truncate">
                     {portfolio.length} posisi aktif · Valuasi Real-Time Lintas
                     Mata Uang
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={handleResetDemo}
-                  className="p-2 rounded-xl text-white/40 hover:text-[#F5B700] hover:bg-white/10 transition-colors"
+                  className="min-h-[38px] min-w-[38px] p-2 rounded-xl text-white/40 hover:text-[#F5B700] hover:bg-white/10 flex items-center justify-center transition-colors"
                   title="Reset ke 3 Aset Seed Default (BBCA.JK, NVDA, BTC-USD)"
                 >
                   <RotateCcw className="w-4 h-4" />
@@ -292,7 +292,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                  className="min-h-[38px] min-w-[38px] p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -300,7 +300,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
             </div>
 
             {/* 2. Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-4 sm:space-y-5">
               {/* A. Portfolio Valuation & Floating PnL Summary Card (IDR) */}
               <div className="rounded-2xl p-4 sm:p-5 bg-gradient-to-br from-[#0A192F] via-[#0F264A]/90 to-[#0A192F] border border-[#F5B700]/30 shadow-glass relative overflow-hidden">
                 <div className="flex items-center justify-between text-[11px] font-mono text-white/60 mb-1">
@@ -436,7 +436,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
 
                 <div className="grid grid-cols-12 gap-2.5">
                   {/* Ticker Symbol Input */}
-                  <div className="col-span-7">
+                  <div className="col-span-12 sm:col-span-7">
                     <label className="text-[10px] font-mono text-white/50 block mb-1">
                       Kode Ticker (mis. BBCA.JK, NVDA, BTC-USD)
                     </label>
@@ -446,12 +446,12 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                       value={tickerInput}
                       onChange={(e) => handleTickerChange(e.target.value)}
                       placeholder="BBCA.JK / AAPL / BTC-USD"
-                      className="w-full px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
                     />
                   </div>
 
                   {/* Currency Select */}
-                  <div className="col-span-5">
+                  <div className="col-span-12 sm:col-span-5">
                     <label className="text-[10px] font-mono text-white/50 block mb-1">
                       Mata Uang
                     </label>
@@ -460,7 +460,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                       onChange={(e) =>
                         setCurrencyInput(e.target.value as PortfolioCurrency)
                       }
-                      className="w-full px-2.5 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white focus:outline-none"
+                      className="w-full min-h-[40px] px-2.5 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white focus:outline-none"
                     >
                       <option value="IDR">IDR (Rp)</option>
                       <option value="USD">USD ($)</option>
@@ -484,7 +484,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                       placeholder={
                         currencyInput === "IDR" ? "1000 (10 Lot)" : "10"
                       }
-                      className="w-full px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
                     />
                   </div>
 
@@ -503,14 +503,14 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                       placeholder={
                         currencyInput === "IDR" ? "9750" : "135.50"
                       }
-                      className="w-full px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
+                      className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-[#040914]/90 border border-white/10 focus:border-[#F5B700] text-xs font-mono text-white placeholder-white/30 focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-[#F5B700] hover:bg-[#E5A700] text-navy-950 font-mono font-extrabold text-xs tracking-wide shadow-gold flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full min-h-[42px] py-2.5 rounded-xl bg-[#F5B700] hover:bg-[#E5A700] text-navy-950 font-mono font-extrabold text-xs tracking-wide shadow-gold flex items-center justify-center gap-1.5 transition-all"
                 >
                   {editingId ? (
                     <>
