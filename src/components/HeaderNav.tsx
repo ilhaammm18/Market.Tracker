@@ -198,20 +198,20 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#040914]/85 backdrop-blur-xl transition-all">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#040914]/90 backdrop-blur-xl transition-all">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-3">
           {/* Left: Brand / Active Stock Badge & Route Switcher (Home vs Market Terminal) */}
-          <div className="flex items-center gap-3 lg:gap-5 shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 lg:gap-5 shrink-0">
             <Link
               href="/"
-              className="relative group flex items-center gap-3"
+              className="relative group flex items-center gap-2 sm:gap-3"
               title="Market.Tracker — Institutional Global Market Intelligence"
             >
-              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#F5B700] to-[#E5A700] text-navy-950 font-black text-sm flex items-center justify-center shadow-gold font-mono tracking-wider ring-2 ring-[#F5B700]/30 transition-transform group-hover:scale-105">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#F5B700] to-[#E5A700] text-navy-950 font-black text-xs sm:text-sm flex items-center justify-center shadow-gold font-mono tracking-wider ring-2 ring-[#F5B700]/30 transition-transform group-hover:scale-105">
                 {isMarketRoute ? activeStock.ticker.slice(0, 2) : "MT"}
               </div>
               <div className="flex flex-col">
-                <div className="flex items-center gap-1.5 font-mono text-sm sm:text-base font-bold text-white tracking-wider">
+                <div className="flex items-center gap-1 sm:gap-1.5 font-mono text-xs sm:text-base font-bold text-white tracking-wider">
                   {isMarketRoute ? (
                     <>
                       <span className="text-[#F5B700]">
@@ -229,7 +229,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                     </>
                   )}
                 </div>
-                <span className="text-[11px] text-white/50 truncate max-w-[110px] sm:max-w-[160px]">
+                <span className="text-[10px] sm:text-[11px] text-white/50 truncate max-w-[92px] sm:max-w-[160px]">
                   {isMarketRoute
                     ? activeStock.name
                     : "Global Market Intelligence"}
@@ -267,16 +267,19 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </nav>
           </div>
 
-          {/* Center: Global Search Bar (Cmd+K) */}
-          <div className="flex-1 max-w-md mx-1 sm:mx-3">
+          {/* Center: Global Search Bar (Cmd+K) with touch-friendly mobile sizing */}
+          <div className="flex-1 max-w-md mx-0.5 sm:mx-3 min-w-0">
             <button
               onClick={() => setSearchOpen(true)}
-              className="w-full h-11 px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.09] hover:border-[#F5B700]/40 flex items-center justify-between text-sm text-white/50 transition-all duration-200 group shadow-inner"
+              className="w-full h-10 sm:h-11 px-2.5 sm:px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.09] hover:border-[#F5B700]/40 flex items-center justify-between text-sm text-white/50 transition-all duration-200 group shadow-inner"
             >
-              <div className="flex items-center gap-2.5 truncate">
+              <div className="flex items-center gap-2 truncate">
                 <Search className="w-4 h-4 text-white/40 group-hover:text-[#F5B700] transition-colors shrink-0" />
                 <span className="text-white/40 group-hover:text-white/70 transition-colors truncate text-xs sm:text-sm">
-                  Cari saham dunia (BBCA, BREN, NVDA, AAPL, BTC)...
+                  <span className="sm:hidden">Cari saham...</span>
+                  <span className="hidden sm:inline">
+                    Cari saham dunia (BBCA, BREN, NVDA, AAPL, BTC)...
+                  </span>
                 </span>
               </div>
               <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.08] border border-white/[0.1] text-[11px] font-mono text-white/60 shrink-0 ml-2">
@@ -286,22 +289,22 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </button>
           </div>
 
-          {/* Right: Interactive 01/04 Navigation, Watchlist & Market State Badge */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Right: Interactive 01/04 Navigation, Portfolio, Watchlist & Market State Badge */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* Mobile Quick Link to Toggle Route */}
             <Link
               href={isMarketRoute ? "/" : "/market"}
-              className="sm:hidden px-2.5 py-1.5 rounded-xl bg-[#F5B700]/15 border border-[#F5B700]/40 text-[#F5B700] font-mono text-[11px] font-bold flex items-center gap-1"
+              className="sm:hidden min-h-[38px] px-2.5 py-1.5 rounded-xl bg-[#F5B700]/15 border border-[#F5B700]/40 text-[#F5B700] font-mono text-[11px] font-bold flex items-center gap-1"
             >
               {isMarketRoute ? (
                 <>
                   <Home className="w-3.5 h-3.5" />
-                  <span>Home</span>
+                  <span className="hidden xs:inline">Home</span>
                 </>
               ) : (
                 <>
                   <LineChart className="w-3.5 h-3.5" />
-                  <span>Terminal</span>
+                  <span className="hidden xs:inline">Terminal</span>
                 </>
               )}
             </Link>
@@ -415,7 +418,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <button
                 type="button"
                 onClick={onOpenPortfolio}
-                className="relative px-3 py-2 rounded-xl bg-[#F5B700]/10 hover:bg-[#F5B700]/20 border border-[#F5B700]/30 text-[#F5B700] font-mono text-xs font-bold flex items-center gap-1.5 transition-all"
+                className="relative min-h-[38px] min-w-[38px] px-2.5 sm:px-3 py-2 rounded-xl bg-[#F5B700]/10 hover:bg-[#F5B700]/20 border border-[#F5B700]/30 text-[#F5B700] font-mono text-xs font-bold flex items-center justify-center gap-1.5 transition-all"
                 title="Buka Multi-Asset Portfolio & PnL Tracker"
               >
                 <Briefcase className="w-4 h-4 shrink-0" />
@@ -432,7 +435,7 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             {onOpenWatchlist && (
               <button
                 onClick={onOpenWatchlist}
-                className="relative p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#F5B700] transition-all"
+                className="relative min-h-[38px] min-w-[38px] p-2 sm:p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#F5B700] flex items-center justify-center transition-all"
                 title="Buka Watchlist"
               >
                 <Star className="w-4 h-4" />
