@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { HeaderNav } from "@/components/HeaderNav";
 import { GlobalTickerTape } from "@/components/GlobalTickerTape";
+import { PortfolioSummaryCard } from "@/components/PortfolioSummaryCard";
 import { LandingSection } from "@/components/LandingSection";
 import { WatchlistDrawer } from "@/components/WatchlistDrawer";
 import { PortfolioDrawer } from "@/components/PortfolioDrawer";
@@ -139,7 +140,15 @@ export default function HomePage() {
         activeTicker=""
       />
 
-      {/* 3. Modern Fintech Landing Section (Hero, Live Market Snapshot & Platform Capabilities) */}
+      {/* 3. Quick Portfolio Overview Widget on Home Page */}
+      <PortfolioSummaryCard
+        portfolio={portfolio}
+        knownStocks={knownStocks}
+        onOpenPortfolio={() => setPortfolioOpen(true)}
+        onSelectStock={handleNavigateToMarket}
+      />
+
+      {/* 4. Modern Fintech Landing Section (Hero, Live Market Snapshot & Platform Capabilities) */}
       <LandingSection
         knownStocks={knownStocks}
         onSelectStock={handleNavigateToMarket}
