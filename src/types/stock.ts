@@ -175,3 +175,66 @@ export interface PortfolioSummary {
   totalPnLPercent: number;
   allocation: PortfolioAllocationItem[];
 }
+
+export type RiskProfileType = "Moderate" | "Volatile" | "Aggressive";
+
+export type AssetClassBucket = "IDX" | "GLOBAL" | "CRYPTO";
+
+export interface RiskProfileTarget {
+  id: RiskProfileType;
+  label: string;
+  description: string;
+  targets: Record<AssetClassBucket, number>;
+}
+
+export type RebalanceStatus = "Overweight" | "Underweight" | "On Target";
+
+export interface AssetRebalanceAnalysis {
+  bucket: AssetClassBucket;
+  label: string;
+  actualWeightPercent: number;
+  targetWeightPercent: number;
+  deviationPercent: number;
+  status: RebalanceStatus;
+  actualEquityIDR: number;
+  targetEquityIDR: number;
+  suggestedActionIDR: number;
+  actionLabel: "Tambah Posisi" | "Kurangi Posisi" | "Sesuai Target";
+  color: string;
+}
+
+export interface PortfolioRebalanceReport {
+  profile: RiskProfileTarget;
+  totalEquityIDR: number;
+  maxAbsDeviationPercent: number;
+  healthScore: number;
+  buckets: AssetRebalanceAnalysis[];
+}
+
+export type PortfolioImportMode = "replace" | "merge";
+
+export interface PortfolioImportResult {
+  success: boolean;
+  items: PortfolioItem[];
+  importedCount: number;
+  error?: string;
+}
+
+export type PriceAlertCondition = "target_buy" | "target_sell";
+
+export interface PriceAlertItem {
+  id: string;
+  ticker: string;
+  name: string;
+  condition: PriceAlertCondition;
+  targetPrice: number;
+  currency: string;
+  currencySymbol: string;
+  createdAt: string;
+}
+
+export interface EvaluatedPriceAlert extends PriceAlertItem {
+  currentPrice: number;
+  isTriggered: boolean;
+  distancePercent: number;
+}

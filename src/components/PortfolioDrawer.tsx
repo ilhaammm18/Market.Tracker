@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -16,12 +16,15 @@ import {
   Coins,
   Check,
   Download,
+  Upload,
   FileJson,
   FileSpreadsheet,
+  AlertCircle,
 } from "lucide-react";
 import {
   PortfolioItem,
   PortfolioCurrency,
+  PortfolioImportMode,
   StockData,
 } from "@/types/stock";
 import {
@@ -33,7 +36,10 @@ import {
   filterAndSummarizeByCategory,
   matchesPortfolioCategory,
   triggerPortfolioDownload,
+  parsePortfolioImportJSON,
+  applyPortfolioImport,
 } from "@/lib/portfolio";
+import { PortfolioAllocationPanel } from "@/components/PortfolioAllocationPanel";
 import { formatCurrency } from "@/lib/utils";
 
 interface PortfolioDrawerProps {
@@ -61,7 +67,12 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] =
     useState<PortfolioFilterCategory>("ALL");
-  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [importMode, setImportMode] = useState<PortfolioImportMode>("merge");
+  const [ioFeedback, setIoFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const summary = useMemo(
     () => calculatePortfolioSummary(portfolio, knownStocks),
@@ -223,18 +234,75 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
     resetForm();
   };
 
+  const showTemporaryFeedback = (
+    type: "success" | "error",
+    message: string
+  ) => {
+    setIoFeedback({ type, message });
+    setTimeout(() => {
+      setIoFeedback(null);
+    }, 3800);
+  };
+
   const handleExport = (format: "json" | "csv") => {
     const ok = triggerPortfolioDownload(format, summary, portfolio);
     if (ok) {
-      setExportFeedback(
+      showTemporaryFeedback(
+        "success",
         format === "json"
           ? "✓ File JSON berhasil diunduh"
           : "✓ File CSV berhasil diunduh"
       );
-      setTimeout(() => {
-        setExportFeedback(null);
-      }, 2600);
+    } else {
+      showTemporaryFeedback("error", "✗ Gagal mengunduh file portofolio.");
     }
+  };
+
+  const handleImportFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset input value so selecting the same file again still triggers onChange
+    e.target.value = "";
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith(".json")) {
+      showTemporaryFeedback(
+        "error",
+        "✗ File harus berformat .json (backup portofolio)."
+      );
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const content = typeof reader.result === "string" ? reader.result : "";
+      const parsed = parsePortfolioImportJSON(content);
+
+      if (!parsed.success) {
+        showTemporaryFeedback(
+          "error",
+          `✗ ${parsed.error || "Format file JSON tidak valid."}`
+        );
+        return;
+      }
+
+      const nextPortfolio = applyPortfolioImport(
+        portfolio,
+        parsed.items,
+        importMode
+      );
+      onUpdatePortfolio(nextPortfolio);
+      resetForm();
+      showTemporaryFeedback(
+        "success",
+        `✓ Berhasil mengimpor ${parsed.importedCount} aset (Mode ${
+          importMode === "replace" ? "Replace" : "Merge"
+        })`
+      );
+    };
+    reader.onerror = () => {
+      showTemporaryFeedback("error", "✗ Gagal membaca file yang dipilih.");
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -402,6 +470,9 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* A2. Risk Allocation & Rebalancing Analytics Panel */}
+              <PortfolioAllocationPanel summary={summary} />
 
               {/* B. Form Tambah / Edit Posisi Aset */}
               <form
@@ -797,12 +868,13 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
               </div>
             </div>
 
-            {/* 3. Drawer Footer with JSON/CSV Export Actions & Download Feedback */}
-            <div className="p-4 border-t border-white/10 bg-[#040914]/90 space-y-2.5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-mono text-white/50 flex items-center gap-1.5">
+            {/* 3. Drawer Footer with Backup Export (JSON/CSV) & Restore Import (JSON Replace/Merge) */}
+            <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#040914]/95 space-y-2.5">
+              {/* Row 1: Export Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-white/55 flex items-center gap-1.5">
                   <Download className="w-3.5 h-3.5 text-[#F5B700]" />
-                  <span>Ekspor Portofolio:</span>
+                  <span>Ekspor:</span>
                 </span>
 
                 <div className="flex items-center gap-2">
@@ -810,7 +882,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                     type="button"
                     disabled={portfolio.length === 0}
                     onClick={() => handleExport("json")}
-                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#F5B700]/20 disabled:opacity-40 border border-white/10 hover:border-[#F5B700]/40 text-[11px] font-mono font-bold text-white hover:text-[#F5B700] flex items-center gap-1.5 transition-all"
+                    className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#F5B700]/20 disabled:opacity-40 border border-white/10 hover:border-[#F5B700]/40 text-[11px] font-mono font-bold text-white hover:text-[#F5B700] flex items-center gap-1.5 transition-all"
                     title="Unduh backup portofolio dalam format JSON"
                   >
                     <FileJson className="w-3.5 h-3.5 text-[#F5B700]" />
@@ -821,7 +893,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                     type="button"
                     disabled={portfolio.length === 0}
                     onClick={() => handleExport("csv")}
-                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-cyan-500/20 disabled:opacity-40 border border-white/10 hover:border-cyan-500/40 text-[11px] font-mono font-bold text-white hover:text-cyan-300 flex items-center gap-1.5 transition-all"
+                    className="min-h-[34px] px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-cyan-500/20 disabled:opacity-40 border border-white/10 hover:border-cyan-500/40 text-[11px] font-mono font-bold text-white hover:text-cyan-300 flex items-center gap-1.5 transition-all"
                     title="Unduh laporan portofolio dalam format CSV (Excel/Sheets)"
                   >
                     <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
@@ -830,15 +902,84 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                 </div>
               </div>
 
-              <div className="text-[11px] font-mono text-white/40 flex items-center justify-between">
-                {exportFeedback ? (
-                  <span className="text-emerald-400 font-bold animate-pulse">
-                    {exportFeedback}
+              {/* Row 2: Import / Restore JSON with Replace or Merge Mode */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.06]">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-mono text-white/55 flex items-center gap-1">
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Restore:</span>
+                  </span>
+                  <div className="flex items-center p-0.5 rounded-lg bg-white/[0.04] border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setImportMode("merge")}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition-all ${
+                        importMode === "merge"
+                          ? "bg-emerald-500 text-navy-950"
+                          : "text-white/55 hover:text-white"
+                      }`}
+                      title="Gabungkan data impor dengan posisi yang sudah ada"
+                    >
+                      Merge
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImportMode("replace")}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold transition-all ${
+                        importMode === "replace"
+                          ? "bg-rose-500 text-white"
+                          : "text-white/55 hover:text-white"
+                      }`}
+                      title="Timpa seluruh portofolio saat ini dengan isi file backup"
+                    >
+                      Replace
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={handleImportFileChange}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="min-h-[34px] px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-[11px] font-mono font-bold text-emerald-300 flex items-center gap-1.5 transition-all"
+                    title="Unggah file backup portofolio (.json)"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Import JSON</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Row 3: Feedback Status / Version Info */}
+              <div className="text-[11px] font-mono text-white/40 flex items-center justify-between gap-2">
+                {ioFeedback ? (
+                  <span
+                    className={`font-bold flex items-center gap-1 truncate ${
+                      ioFeedback.type === "success"
+                        ? "text-emerald-400"
+                        : "text-rose-400"
+                    }`}
+                  >
+                    {ioFeedback.type === "error" && (
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    )}
+                    <span className="truncate">{ioFeedback.message}</span>
                   </span>
                 ) : (
-                  <span>Disimpan otomatis di LocalStorage browser</span>
+                  <span className="truncate">
+                    Disimpan otomatis di LocalStorage browser
+                  </span>
                 )}
-                <span className="text-[#F5B700]">Multi-Currency PnL v1.3</span>
+                <span className="text-[#F5B700] shrink-0">
+                  Portfolio Suite v1.5
+                </span>
               </div>
             </div>
           </motion.aside>

@@ -3,6 +3,14 @@ import {
   PortfolioSummary,
   PortfolioAllocationItem,
   StockData,
+  RiskProfileType,
+  RiskProfileTarget,
+  AssetClassBucket,
+  AssetRebalanceAnalysis,
+  PortfolioRebalanceReport,
+  RebalanceStatus,
+  PortfolioImportMode,
+  PortfolioImportResult,
 } from "@/types/stock";
 import { MOCK_STOCKS } from "@/data/mockStocks";
 
@@ -453,4 +461,345 @@ export function triggerPortfolioDownload(
   } catch {
     return false;
   }
+}
+
+/**
+ * Risk profile target allocation benchmarks across asset classes (IDX, US / Global, CRYPTO)
+ */
+export const RISK_PROFILES: Record<RiskProfileType, RiskProfileTarget> = {
+  Moderate: {
+    id: "Moderate",
+    label: "Moderate",
+    description:
+      "Fokus stabilitas blue-chip domestik (IDX) dan ekuitas global dengan porsi kripto terkendali.",
+    targets: {
+      IDX: 55,
+      GLOBAL: 35,
+      CRYPTO: 10,
+    },
+  },
+  Volatile: {
+    id: "Volatile",
+    label: "Volatile",
+    description:
+      "Keseimbangan dinamis antara saham pertumbuhan global, emiten IDX, dan momentum aset kripto.",
+    targets: {
+      IDX: 35,
+      GLOBAL: 40,
+      CRYPTO: 25,
+    },
+  },
+  Aggressive: {
+    id: "Aggressive",
+    label: "Aggressive",
+    description:
+      "Eksposur tinggi pada aset high-beta global dan kripto untuk mengejar potensi imbal hasil agresif.",
+    targets: {
+      IDX: 20,
+      GLOBAL: 35,
+      CRYPTO: 45,
+    },
+  },
+};
+
+const BUCKET_META: Record<
+  AssetClassBucket,
+  { label: string; color: string }
+> = {
+  IDX: { label: "IDX (Saham BEI)", color: "#F5B700" },
+  GLOBAL: { label: "US / Global", color: "#06B6D4" },
+  CRYPTO: { label: "CRYPTO", color: "#10B981" },
+};
+
+const REBALANCE_TOLERANCE_PCT = 2.5;
+
+/**
+ * Calculates actual portfolio weights, deviation vs selected risk profile,
+ * overweight/underweight status, and nominal IDR rebalancing recommendations.
+ */
+export function calculatePortfolioRebalancing(
+  summary: PortfolioSummary,
+  profileType: RiskProfileType
+): PortfolioRebalanceReport {
+  const profile = RISK_PROFILES[profileType] || RISK_PROFILES.Moderate;
+  const totalEquityIDR = Math.max(0, summary.totalEquityIDR);
+  const bucketOrder: AssetClassBucket[] = ["IDX", "GLOBAL", "CRYPTO"];
+
+  let sumAbsDeviation = 0;
+  let maxAbsDeviationPercent = 0;
+
+  const buckets: AssetRebalanceAnalysis[] = bucketOrder.map((bucket) => {
+    const subtotal = filterAndSummarizeByCategory(summary.allocation, bucket);
+    const actualEquityIDR = subtotal.subtotalEquityIDR;
+    const actualWeightPercent =
+      totalEquityIDR > 0
+        ? Number(((actualEquityIDR / totalEquityIDR) * 100).toFixed(1))
+        : 0;
+    const targetWeightPercent = profile.targets[bucket];
+    const deviationPercent = Number(
+      (actualWeightPercent - targetWeightPercent).toFixed(1)
+    );
+    const absDev = Math.abs(deviationPercent);
+
+    sumAbsDeviation += absDev;
+    if (absDev > maxAbsDeviationPercent) {
+      maxAbsDeviationPercent = absDev;
+    }
+
+    const targetEquityIDR = Math.round(
+      totalEquityIDR * (targetWeightPercent / 100)
+    );
+    const rawDiffIDR = targetEquityIDR - actualEquityIDR;
+
+    let status: RebalanceStatus = "On Target";
+    let actionLabel: AssetRebalanceAnalysis["actionLabel"] = "Sesuai Target";
+    let suggestedActionIDR = 0;
+
+    if (totalEquityIDR > 0) {
+      if (deviationPercent > REBALANCE_TOLERANCE_PCT) {
+        status = "Overweight";
+        actionLabel = "Kurangi Posisi";
+        suggestedActionIDR = rawDiffIDR; // negative value = trim/sell
+      } else if (deviationPercent < -REBALANCE_TOLERANCE_PCT) {
+        status = "Underweight";
+        actionLabel = "Tambah Posisi";
+        suggestedActionIDR = rawDiffIDR; // positive value = buy/add
+      }
+    }
+
+    return {
+      bucket,
+      label: BUCKET_META[bucket].label,
+      actualWeightPercent,
+      targetWeightPercent,
+      deviationPercent,
+      status,
+      actualEquityIDR,
+      targetEquityIDR,
+      suggestedActionIDR,
+      actionLabel,
+      color: BUCKET_META[bucket].color,
+    };
+  });
+
+  const healthScore =
+    totalEquityIDR > 0
+      ? Math.max(0, Math.min(100, Math.round(100 - sumAbsDeviation / 2)))
+      : 0;
+
+  return {
+    profile,
+    totalEquityIDR,
+    maxAbsDeviationPercent: Number(maxAbsDeviationPercent.toFixed(1)),
+    healthScore,
+    buckets,
+  };
+}
+
+const VALID_IMPORT_CURRENCIES = new Set(["IDR", "USD", "AUD", "KRW"]);
+
+/**
+ * Validates schema and parses a JSON backup file into normalized PortfolioItem records.
+ * Supports both Market.Tracker export format ({ positions: [...] }) and raw PortfolioItem[].
+ */
+export function parsePortfolioImportJSON(
+  rawJson: string
+): PortfolioImportResult {
+  if (typeof rawJson !== "string" || !rawJson.trim()) {
+    return {
+      success: false,
+      items: [],
+      importedCount: 0,
+      error: "File JSON kosong atau tidak dapat dibaca.",
+    };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return {
+      success: false,
+      items: [],
+      importedCount: 0,
+      error: "Struktur JSON tidak valid (syntax error).",
+    };
+  }
+
+  let rawList: unknown[] | null = null;
+  if (Array.isArray(parsed)) {
+    rawList = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    if (Array.isArray(obj.positions)) {
+      rawList = obj.positions;
+    } else if (Array.isArray(obj.items)) {
+      rawList = obj.items;
+    }
+  }
+
+  if (!rawList) {
+    return {
+      success: false,
+      items: [],
+      importedCount: 0,
+      error:
+        "Format skema tidak dikenali. Pastikan file memiliki array 'positions' atau array posisi portofolio.",
+    };
+  }
+
+  if (rawList.length === 0) {
+    return {
+      success: false,
+      items: [],
+      importedCount: 0,
+      error: "Daftar posisi di dalam file backup JSON kosong.",
+    };
+  }
+
+  const validItems: PortfolioItem[] = [];
+  const nowStamp = Date.now();
+
+  for (let i = 0; i < rawList.length; i++) {
+    const entry = rawList[i];
+    if (!entry || typeof entry !== "object") {
+      return {
+        success: false,
+        items: [],
+        importedCount: 0,
+        error: `Entri posisi ke-${i + 1} bukan objek yang valid.`,
+      };
+    }
+
+    const rec = entry as Record<string, unknown>;
+    const tickerRaw =
+      typeof rec.ticker === "string" ? rec.ticker.trim().toUpperCase() : "";
+    const quantityNum = Number(rec.quantity);
+    const avgBuyNum = Number(rec.avgBuyPrice);
+
+    if (!tickerRaw || tickerRaw.length > 24) {
+      return {
+        success: false,
+        items: [],
+        importedCount: 0,
+        error: `Ticker tidak valid pada posisi ke-${i + 1}.`,
+      };
+    }
+
+    if (!Number.isFinite(quantityNum) || quantityNum <= 0) {
+      return {
+        success: false,
+        items: [],
+        importedCount: 0,
+        error: `Jumlah unit/lembar (quantity) harus > 0 pada ticker ${tickerRaw}.`,
+      };
+    }
+
+    if (!Number.isFinite(avgBuyNum) || avgBuyNum <= 0) {
+      return {
+        success: false,
+        items: [],
+        importedCount: 0,
+        error: `Harga beli rata-rata (avgBuyPrice) harus > 0 pada ticker ${tickerRaw}.`,
+      };
+    }
+
+    const currencyRaw =
+      typeof rec.currency === "string"
+        ? rec.currency.trim().toUpperCase()
+        : tickerRaw.endsWith(".JK")
+        ? "IDR"
+        : "USD";
+
+    if (!VALID_IMPORT_CURRENCIES.has(currencyRaw)) {
+      return {
+        success: false,
+        items: [],
+        importedCount: 0,
+        error: `Mata uang "${currencyRaw}" tidak didukung pada ticker ${tickerRaw} (gunakan IDR, USD, AUD, atau KRW).`,
+      };
+    }
+
+    const exchangeRaw =
+      typeof rec.exchange === "string" && rec.exchange.trim()
+        ? rec.exchange.trim().toUpperCase()
+        : tickerRaw.endsWith(".JK") || currencyRaw === "IDR"
+        ? "IDX"
+        : tickerRaw.endsWith("-USD")
+        ? "CRYPTO"
+        : "NASDAQ";
+
+    const nameRaw =
+      typeof rec.name === "string" && rec.name.trim()
+        ? rec.name.trim()
+        : `${tickerRaw} (${exchangeRaw})`;
+
+    const assetTypeRaw =
+      typeof rec.assetType === "string" && rec.assetType.trim()
+        ? rec.assetType.trim().toUpperCase()
+        : exchangeRaw;
+
+    validItems.push({
+      id:
+        typeof rec.id === "string" && rec.id.trim()
+          ? rec.id.trim()
+          : `imp-${nowStamp}-${i}`,
+      ticker: tickerRaw,
+      name: nameRaw,
+      exchange: exchangeRaw,
+      quantity: Number(quantityNum.toFixed(6)),
+      avgBuyPrice: Number(avgBuyNum.toFixed(4)),
+      currency: currencyRaw,
+      assetType: assetTypeRaw,
+    });
+  }
+
+  return {
+    success: true,
+    items: validItems,
+    importedCount: validItems.length,
+  };
+}
+
+/**
+ * Applies imported portfolio items using either "replace" or "merge" (weighted average) strategy
+ */
+export function applyPortfolioImport(
+  existing: PortfolioItem[],
+  imported: PortfolioItem[],
+  mode: PortfolioImportMode
+): PortfolioItem[] {
+  if (mode === "replace") {
+    return imported;
+  }
+
+  const merged = existing.map((item) => ({ ...item }));
+
+  for (const inc of imported) {
+    const idx = merged.findIndex(
+      (e) => e.ticker.toUpperCase() === inc.ticker.toUpperCase()
+    );
+
+    if (idx >= 0) {
+      const curr = merged[idx];
+      const combinedQty = curr.quantity + inc.quantity;
+      const weightedAvg =
+        combinedQty > 0
+          ? (curr.quantity * curr.avgBuyPrice +
+              inc.quantity * inc.avgBuyPrice) /
+            combinedQty
+          : inc.avgBuyPrice;
+
+      merged[idx] = {
+        ...curr,
+        quantity: Number(combinedQty.toFixed(6)),
+        avgBuyPrice: Number(weightedAvg.toFixed(4)),
+        currency: inc.currency || curr.currency,
+      };
+    } else {
+      merged.unshift({ ...inc });
+    }
+  }
+
+  return merged;
 }
