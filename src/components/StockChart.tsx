@@ -187,10 +187,12 @@ export const StockChart: React.FC<StockChartProps> = ({
 
     const isInt = isIntegerCurrency(currency);
     const isIntraday = timeframe === "1D" || timeframe === "1W";
+    const initialHeight =
+      typeof window !== "undefined" && window.innerWidth < 640 ? 175 : 200;
 
     const chart = createChart(container, {
-      width: container.clientWidth || 360,
-      height: 195,
+      width: container.clientWidth || 320,
+      height: initialHeight,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "rgba(248, 250, 252, 0.45)",
@@ -443,7 +445,8 @@ export const StockChart: React.FC<StockChartProps> = ({
       if (!entries.length) return;
       const { width } = entries[0].contentRect;
       if (width > 0) {
-        chart.applyOptions({ width });
+        const nextHeight = width < 380 ? 175 : 200;
+        chart.applyOptions({ width, height: nextHeight });
       }
     });
 
@@ -476,16 +479,16 @@ export const StockChart: React.FC<StockChartProps> = ({
       : "bg-cyan-500/10 text-cyan-300 border-cyan-500/25";
 
   return (
-    <div className="w-full mt-4 flex flex-col">
+    <div className="w-full mt-3.5 sm:mt-4 flex flex-col">
       {/* Row 1: Timeframe Selector + Chart Mode Toggle (Area vs Candlestick) */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-white/[0.06]">
         {/* Timeframe Selector Buttons */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-navy-900/90 border border-white/[0.08]">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-navy-900/90 border border-white/[0.08] flex-1 sm:flex-initial justify-between sm:justify-start">
           {timeframes.map((tf) => (
             <button
               key={tf}
               onClick={() => onTimeframeChange(tf)}
-              className={`px-2.5 py-1 text-xs font-mono font-bold rounded-lg transition-all duration-200 ${
+              className={`min-h-[30px] px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-mono font-bold rounded-lg transition-all duration-200 flex-1 sm:flex-initial text-center ${
                 timeframe === tf
                   ? "bg-[#F5B700] text-navy-950 shadow-gold scale-[1.03]"
                   : "text-white/60 hover:text-white hover:bg-white/[0.06]"
@@ -501,7 +504,7 @@ export const StockChart: React.FC<StockChartProps> = ({
           <button
             type="button"
             onClick={() => setChartMode("area")}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
+            className={`min-h-[30px] px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
               chartMode === "area"
                 ? "bg-[#F5B700] text-navy-950 shadow-gold"
                 : "text-white/60 hover:text-white hover:bg-white/[0.06]"
@@ -514,7 +517,7 @@ export const StockChart: React.FC<StockChartProps> = ({
           <button
             type="button"
             onClick={() => setChartMode("candlestick")}
-            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
+            className={`min-h-[30px] px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
               chartMode === "candlestick"
                 ? "bg-emerald-500 text-navy-950 shadow-emerald"
                 : "text-white/60 hover:text-white hover:bg-white/[0.06]"
@@ -685,7 +688,7 @@ export const StockChart: React.FC<StockChartProps> = ({
       </div>
 
       {/* Lightweight-Charts Canvas Container */}
-      <div className="relative w-full h-[195px] mt-1 select-none">
+      <div className="relative w-full h-[175px] sm:h-[200px] mt-1 select-none overflow-hidden">
         <div ref={chartContainerRef} className="w-full h-full" />
       </div>
 
