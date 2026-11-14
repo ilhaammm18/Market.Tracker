@@ -1,8 +1,18 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { TimeFrame, StockPricePoint } from "@/types/stock";
-import { formatCurrency } from "@/lib/utils";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import {
+  createChart,
+  AreaSeries,
+  CandlestickSeries,
+  ColorType,
+  CrosshairMode,
+  UTCTimestamp,
+  IChartApi,
+} from "lightweight-charts";
+import { TrendingUp, CandlestickChart as CandleIcon } from "lucide-react";
+import { TimeFrame, StockPricePoint, ChartMode } from "@/types/stock";
+import { formatCurrency, isIntegerCurrency } from "@/lib/utils";
 
 interface StockChartProps {
   history: Record<TimeFrame, StockPricePoint[]>;
@@ -10,7 +20,15 @@ interface StockChartProps {
   onTimeframeChange: (tf: TimeFrame) => void;
   currency: string;
   currencySymbol: string;
-  isPositive: boolean;
+  isPositive?: boolean;
+}
+
+interface HoveredBarInfo {
+  timeStr: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 }
 
 export const StockChart: React.FC<StockChartProps> = ({
@@ -21,68 +39,276 @@ export const StockChart: React.FC<StockChartProps> = ({
   currencySymbol,
   isPositive,
 }) => {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [chartMode, setChartMode] = useState<ChartMode>("area");
+  const [hoveredBar, setHoveredBar] = useState<HoveredBarInfo | null>(null);
+  const chartContainerRef = useRef<HTMLDivElement | null>(null);
+  const chartApiRef = useRef<IChartApi | null>(null);
 
   const data = useMemo(() => {
     return history[timeframe] || history["1D"] || [];
   }, [history, timeframe]);
 
-  const { points, minPrice, maxPrice, pathD, areaD } = useMemo(() => {
-    if (!data || data.length === 0) {
-      return { points: [], minPrice: 0, maxPrice: 0, pathD: "", areaD: "" };
+  // Normalize and sort strictly ascending by UNIX seconds for lightweight-charts
+  const normalizedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    const mapBySec = new Map<number, StockPricePoint & { sec: UTCTimestamp }>();
+
+    for (const pt of data) {
+      if (
+        pt &&
+        Number.isFinite(pt.timestamp) &&
+        Number.isFinite(pt.close)
+      ) {
+        const sec = Math.floor(pt.timestamp / 1000) as UTCTimestamp;
+        const open = Number.isFinite(pt.open) ? pt.open : pt.close;
+        const high = Number.isFinite(pt.high) ? Math.max(pt.high, open, pt.close) : Math.max(open, pt.close);
+        const low = Number.isFinite(pt.low) ? Math.min(pt.low, open, pt.close) : Math.min(open, pt.close);
+        mapBySec.set(sec, {
+          ...pt,
+          open,
+          high,
+          low,
+          sec,
+        });
+      }
     }
 
-    const prices = data.map((d) => d.close);
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const padding = (max - min) * 0.1 || max * 0.05 || 1;
-    const yMin = min - padding;
-    const yMax = max + padding;
-
-    const width = 500;
-    const height = 180;
-
-    const calculatedPoints = data.map((d, index) => {
-      const x = (index / (data.length - 1 || 1)) * width;
-      const y = height - ((d.close - yMin) / (yMax - yMin)) * height;
-      return { x, y, data: d };
-    });
-
-    // Create smooth bezier curve
-    if (calculatedPoints.length < 2) {
-      return { points: calculatedPoints, minPrice: min, maxPrice: max, pathD: "", areaD: "" };
-    }
-
-    let linePath = `M ${calculatedPoints[0].x} ${calculatedPoints[0].y}`;
-    for (let i = 0; i < calculatedPoints.length - 1; i++) {
-      const current = calculatedPoints[i];
-      const next = calculatedPoints[i + 1];
-      const controlX = (current.x + next.x) / 2;
-      linePath += ` C ${controlX} ${current.y}, ${controlX} ${next.y}, ${next.x} ${next.y}`;
-    }
-
-    const lastPoint = calculatedPoints[calculatedPoints.length - 1];
-    const firstPoint = calculatedPoints[0];
-    const fillPath = `${linePath} L ${lastPoint.x} ${height} L ${firstPoint.x} ${height} Z`;
-
-    return {
-      points: calculatedPoints,
-      minPrice: min,
-      maxPrice: max,
-      pathD: linePath,
-      areaD: fillPath,
-    };
+    return Array.from(mapBySec.values()).sort((a, b) => a.sec - b.sec);
   }, [data]);
 
-  const activeHoverPoint = hoverIndex !== null && points[hoverIndex] ? points[hoverIndex] : null;
+  // Accurate Min, Max, and Volatility calculation from active timeframe price array
+  const { minPrice, maxPrice, volatilityText, volatilityColor } = useMemo(() => {
+    if (normalizedData.length === 0) {
+      return {
+        minPrice: 0,
+        maxPrice: 0,
+        volatilityText: "Rendah (0.0%)",
+        volatilityColor: "text-[#06B6D4]",
+      };
+    }
+
+    const lows = normalizedData.map((d) => (chartMode === "candlestick" ? d.low : d.close));
+    const highs = normalizedData.map((d) => (chartMode === "candlestick" ? d.high : d.close));
+
+    const min = Math.min(...lows);
+    const max = Math.max(...highs);
+    const spreadPct = min > 0 ? ((max - min) / min) * 100 : 0;
+
+    let label = "Rendah";
+    let color = "text-emerald-400";
+    if (spreadPct >= 15) {
+      label = "Tinggi";
+      color = "text-rose-400";
+    } else if (spreadPct >= 6) {
+      label = "Sedang";
+      color = "text-[#F5B700]";
+    } else if (spreadPct >= 2.2) {
+      label = "Rendah-Sedang";
+      color = "text-[#06B6D4]";
+    }
+
+    return {
+      minPrice: min,
+      maxPrice: max,
+      volatilityText: `${label} (${spreadPct.toFixed(1)}%)`,
+      volatilityColor: color,
+    };
+  }, [normalizedData, chartMode]);
+
+  // Render & update lightweight-charts instance
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container) return;
+
+    const isInt = isIntegerCurrency(currency);
+    const isIntraday = timeframe === "1D" || timeframe === "1W";
+
+    const chart = createChart(container, {
+      width: container.clientWidth || 360,
+      height: 185,
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "rgba(248, 250, 252, 0.45)",
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 10,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: { color: "rgba(255, 255, 255, 0.04)", style: 2 },
+        horzLines: { color: "rgba(255, 255, 255, 0.04)", style: 2 },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: {
+          color: "rgba(245, 183, 0, 0.65)",
+          width: 1,
+          style: 2,
+          labelBackgroundColor: "#F5B700",
+        },
+        horzLine: {
+          color: "rgba(245, 183, 0, 0.65)",
+          width: 1,
+          style: 2,
+          labelBackgroundColor: "#0F264A",
+        },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: {
+          top: 0.12,
+          bottom: 0.08,
+        },
+      },
+      timeScale: {
+        borderVisible: false,
+        timeVisible: isIntraday,
+        secondsVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+      },
+      localization: {
+        locale: "id-ID",
+        priceFormatter: (priceVal: number) => {
+          if (isInt) {
+            return Math.round(priceVal).toLocaleString("id-ID");
+          }
+          return priceVal.toFixed(2);
+        },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+    });
+
+    chartApiRef.current = chart;
+
+    // Lookup map by timestamp seconds for rich tooltip
+    const pointBySec = new Map<number, StockPricePoint>();
+    for (const pt of normalizedData) {
+      pointBySec.set(pt.sec as number, pt);
+    }
+
+    let mainSeries: any;
+
+    if (chartMode === "area") {
+      mainSeries = chart.addSeries(AreaSeries, {
+        lineColor: "#F5B700",
+        topColor: "rgba(245, 183, 0, 0.38)",
+        bottomColor: "rgba(245, 183, 0, 0.0)",
+        lineWidth: 2,
+        crosshairMarkerVisible: true,
+        crosshairMarkerRadius: 4,
+        crosshairMarkerBorderColor: "#040914",
+        crosshairMarkerBackgroundColor: "#F5B700",
+        priceFormat: {
+          type: "price",
+          precision: isInt ? 0 : 2,
+          minMove: isInt ? 1 : 0.01,
+        },
+      });
+
+      mainSeries.setData(
+        normalizedData.map((d) => ({
+          time: d.sec,
+          value: d.close,
+        }))
+      );
+    } else {
+      mainSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#10B981",
+        downColor: "#F43F5E",
+        borderUpColor: "#10B981",
+        borderDownColor: "#F43F5E",
+        wickUpColor: "#10B981",
+        wickDownColor: "#F43F5E",
+        priceFormat: {
+          type: "price",
+          precision: isInt ? 0 : 2,
+          minMove: isInt ? 1 : 0.01,
+        },
+      });
+
+      mainSeries.setData(
+        normalizedData.map((d) => ({
+          time: d.sec,
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        }))
+      );
+    }
+
+    chart.timeScale().fitContent();
+
+    // Crosshair hover handler
+    chart.subscribeCrosshairMove((param) => {
+      if (
+        !param.time ||
+        param.point === undefined ||
+        param.point.x < 0 ||
+        param.point.y < 0
+      ) {
+        setHoveredBar(null);
+        return;
+      }
+
+      const secKey = Number(param.time);
+      const matched = pointBySec.get(secKey);
+
+      if (matched) {
+        const d = new Date(matched.timestamp);
+        const formattedTime = d.toLocaleDateString("id-ID", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: isIntraday ? "2-digit" : undefined,
+          minute: isIntraday ? "2-digit" : undefined,
+        });
+        setHoveredBar({
+          timeStr: formattedTime,
+          open: matched.open,
+          high: matched.high,
+          low: matched.low,
+          close: matched.close,
+        });
+      }
+    });
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      if (!entries.length) return;
+      const { width } = entries[0].contentRect;
+      if (width > 0) {
+        chart.applyOptions({ width });
+      }
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+      setHoveredBar(null);
+      chart.remove();
+      chartApiRef.current = null;
+    };
+  }, [normalizedData, chartMode, currency, timeframe]);
 
   const timeframes: TimeFrame[] = ["1D", "1W", "1M", "1Y", "ALL"];
 
   return (
     <div className="w-full mt-4 flex flex-col">
-      {/* Timeframe Selector Buttons */}
-      <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
-        <div className="flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-navy-900/90 border border-white/[0.08]">
+      {/* Controls Row: Timeframe Selector + Chart Mode Toggle (Area vs Candlestick) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/[0.06]">
+        {/* Timeframe Selector Buttons */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-navy-900/90 border border-white/[0.08]">
           {timeframes.map((tf) => (
             <button
               key={tf}
@@ -98,125 +324,93 @@ export const StockChart: React.FC<StockChartProps> = ({
           ))}
         </div>
 
-        {/* Hovered Price / Tooltip Value */}
-        <div className="text-right font-mono">
-          {activeHoverPoint ? (
-            <div>
-              <div className="text-xs font-semibold text-[#F5B700]">
-                {formatCurrency(activeHoverPoint.data.close, currency, currencySymbol)}
-              </div>
-              <div className="text-[10px] text-white/50">{activeHoverPoint.data.time}</div>
-            </div>
-          ) : (
-            <div className="text-[11px] text-white/40">Hover titik untuk detail</div>
-          )}
+        {/* Chart Mode Toggle (Area vs Candlestick) */}
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-navy-900/90 border border-white/[0.08]">
+          <button
+            type="button"
+            onClick={() => setChartMode("area")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
+              chartMode === "area"
+                ? "bg-[#F5B700] text-navy-950 shadow-gold"
+                : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+            }`}
+            title="Mode Grafik Area Kuning Emas"
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Area</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setChartMode("candlestick")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold flex items-center gap-1 transition-all duration-200 ${
+              chartMode === "candlestick"
+                ? "bg-emerald-500 text-navy-950 shadow-emerald"
+                : "text-white/60 hover:text-white hover:bg-white/[0.06]"
+            }`}
+            title="Mode Grafik Candlestick OHLC"
+          >
+            <CandleIcon className="w-3.5 h-3.5" />
+            <span>Candle</span>
+          </button>
         </div>
       </div>
 
-      {/* SVG Interactive Chart */}
-      <div className="relative w-full h-[175px] mt-3 group select-none">
-        <svg
-          viewBox="0 0 500 180"
-          className="w-full h-full overflow-visible"
-          preserveAspectRatio="none"
-          onMouseLeave={() => setHoverIndex(null)}
-          onMouseMove={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const relativeX = (mouseX / rect.width) * 500;
-            const index = Math.round((relativeX / 500) * (points.length - 1));
-            if (index >= 0 && index < points.length) {
-              setHoverIndex(index);
-            }
-          }}
-        >
-          <defs>
-            {/* Radiant Gold Gradient for Chart Area */}
-            <linearGradient id="goldAreaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F5B700" stopOpacity="0.38" />
-              <stop offset="60%" stopColor="#F5B700" stopOpacity="0.08" />
-              <stop offset="100%" stopColor="#F5B700" stopOpacity="0.0" />
-            </linearGradient>
-
-            <filter id="goldGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feComposite in="SourceGraphic" in2="blur" operator="over" />
-            </filter>
-          </defs>
-
-          {/* Grid lines */}
-          <line x1="0" y1="45" x2="500" y2="45" stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
-          <line x1="0" y1="90" x2="500" y2="90" stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
-          <line x1="0" y1="135" x2="500" y2="135" stroke="rgba(255,255,255,0.04)" strokeDasharray="4 4" />
-
-          {/* Area Fill */}
-          {areaD && (
-            <path
-              d={areaD}
-              fill="url(#goldAreaGradient)"
-              className="transition-all duration-300"
-            />
-          )}
-
-          {/* Glowing Stroke */}
-          {pathD && (
-            <path
-              d={pathD}
-              fill="none"
-              stroke="#F5B700"
-              strokeWidth="2.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              filter="url(#goldGlow)"
-            />
-          )}
-
-          {/* Active Hover Crosshair Line */}
-          {activeHoverPoint && (
-            <>
-              <line
-                x1={activeHoverPoint.x}
-                y1="0"
-                x2={activeHoverPoint.x}
-                y2="180"
-                stroke="#F5B700"
-                strokeWidth="1.2"
-                strokeDasharray="3 3"
-                opacity="0.8"
-              />
-              <circle
-                cx={activeHoverPoint.x}
-                cy={activeHoverPoint.y}
-                r="5"
-                fill="#F5B700"
-                stroke="#040914"
-                strokeWidth="2.5"
-                className="animate-pulse"
-              />
-            </>
-          )}
-
-          {/* Latest Point Indicator */}
-          {!activeHoverPoint && points.length > 0 && (
-            <circle
-              cx={points[points.length - 1].x}
-              cy={points[points.length - 1].y}
-              r="4.5"
-              fill="#F5B700"
-              stroke="#040914"
-              strokeWidth="2"
-            />
-          )}
-        </svg>
+      {/* Interactive Crosshair Detail Readout */}
+      <div className="min-h-[34px] flex items-center justify-between pt-2 text-[11px] font-mono">
+        {hoveredBar ? (
+          chartMode === "candlestick" ? (
+            <div className="w-full flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/[0.06]">
+              <span className="text-white/60 text-[10px]">{hoveredBar.timeStr}</span>
+              <div className="flex items-center gap-2 text-[10px]">
+                <span className="text-white/50">
+                  O: <b className="text-white">{formatCurrency(hoveredBar.open, currency, currencySymbol)}</b>
+                </span>
+                <span className="text-white/50">
+                  H: <b className="text-emerald-400">{formatCurrency(hoveredBar.high, currency, currencySymbol)}</b>
+                </span>
+                <span className="text-white/50">
+                  L: <b className="text-rose-400">{formatCurrency(hoveredBar.low, currency, currencySymbol)}</b>
+                </span>
+                <span className="text-white/50">
+                  C: <b className="text-[#F5B700]">{formatCurrency(hoveredBar.close, currency, currencySymbol)}</b>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="w-full flex items-center justify-between bg-white/[0.03] px-2.5 py-1 rounded-lg border border-white/[0.06]">
+              <span className="text-white/60 text-[10px]">{hoveredBar.timeStr}</span>
+              <span className="text-xs font-bold text-[#F5B700]">
+                {formatCurrency(hoveredBar.close, currency, currencySymbol)}
+              </span>
+            </div>
+          )
+        ) : (
+          <div className="w-full flex items-center justify-between text-[10px] text-white/40 px-1">
+            <span>
+              Mode: <b className="text-white/70 uppercase">{chartMode === "area" ? "Area Gold" : "OHLC Candlestick"}</b>
+            </span>
+            <span>Arahkan kursor pada grafik untuk detail OHLC & waktu</span>
+          </div>
+        )}
       </div>
 
-      {/* Chart Footer details */}
-      <div className="flex items-center justify-between text-[10px] font-mono text-white/40 mt-1 pt-1">
-        <span>Min: {formatCurrency(minPrice, currency, currencySymbol)}</span>
-        <span className="text-[#06B6D4]">Volatilitas: Rendah-Sedang</span>
-        <span>Maks: {formatCurrency(maxPrice, currency, currencySymbol)}</span>
+      {/* Lightweight-Charts Canvas Container */}
+      <div className="relative w-full h-[185px] mt-1 select-none">
+        <div ref={chartContainerRef} className="w-full h-full" />
+      </div>
+
+      {/* Accurate Chart Footer Details: Min, Volatility, Max */}
+      <div className="flex items-center justify-between text-[10px] font-mono text-white/50 mt-2 pt-2 border-t border-white/[0.06]">
+        <span>
+          Min: <b className="text-white/80">{formatCurrency(minPrice, currency, currencySymbol)}</b>
+        </span>
+        <span className={volatilityColor}>
+          Volatilitas ({timeframe}): <b>{volatilityText}</b>
+        </span>
+        <span>
+          Maks: <b className="text-white/80">{formatCurrency(maxPrice, currency, currencySymbol)}</b>
+        </span>
       </div>
     </div>
   );
 };
-
