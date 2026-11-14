@@ -2,13 +2,14 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Globe2, TrendingUp, TrendingDown, Star, Sparkles, ArrowRight } from "lucide-react";
+import { Globe2, TrendingUp, TrendingDown, Star, ArrowRight } from "lucide-react";
 import { StockData, MarketRegion } from "@/types/stock";
 import { MOCK_STOCKS } from "@/data/mockStocks";
 import { formatCurrency } from "@/lib/utils";
 
 interface MarketExplorerProps {
   activeTicker: string;
+  knownStocks?: Record<string, StockData>;
   onSelectStock: (ticker: string) => void;
   watchlist: string[];
   onToggleWatchlist: (ticker: string) => void;
@@ -16,6 +17,7 @@ interface MarketExplorerProps {
 
 export const MarketExplorer: React.FC<MarketExplorerProps> = ({
   activeTicker,
+  knownStocks = MOCK_STOCKS,
   onSelectStock,
   watchlist,
   onToggleWatchlist,
@@ -32,7 +34,7 @@ export const MarketExplorer: React.FC<MarketExplorerProps> = ({
     { key: "CRYPTO", label: "KRIPTO", badge: "Digital Gold" },
   ];
 
-  const stocks = Object.values(MOCK_STOCKS).filter((s) => {
+  const stocks = Object.values(knownStocks).filter((s) => {
     if (selectedRegion === "ALL") return true;
     if (selectedRegion === "IDX") return s.exchange === "IDX";
     if (selectedRegion === "US") return s.exchange === "NASDAQ" || s.exchange === "NYSE";
@@ -79,7 +81,9 @@ export const MarketExplorer: React.FC<MarketExplorerProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stocks.map((s) => {
           const isPositive = s.changePercent >= 0;
-          const isActive = s.ticker === activeTicker;
+          const isActive =
+            s.ticker.toUpperCase() === activeTicker.toUpperCase() ||
+            s.yahooSymbol.toUpperCase() === activeTicker.toUpperCase();
           const isWatched = watchlist.includes(s.ticker);
 
           return (
@@ -139,8 +143,15 @@ export const MarketExplorer: React.FC<MarketExplorerProps> = ({
                       isPositive ? "text-emerald-400" : "text-rose-400"
                     }`}
                   >
-                    {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                    <span>{isPositive ? "+" : ""}{s.changePercent.toFixed(2)}%</span>
+                    {isPositive ? (
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <TrendingDown className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {isPositive ? "+" : ""}
+                      {s.changePercent.toFixed(2)}%
+                    </span>
                   </div>
                 </div>
               </div>
@@ -152,7 +163,7 @@ export const MarketExplorer: React.FC<MarketExplorerProps> = ({
                 </span>
 
                 <button
-                  onClick={() => onSelectStock(s.ticker)}
+                  onClick={() => onSelectStock(s.yahooSymbol || s.ticker)}
                   className={`px-3 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1 transition-all ${
                     isActive
                       ? "bg-[#F5B700] text-navy-950"
@@ -170,4 +181,3 @@ export const MarketExplorer: React.FC<MarketExplorerProps> = ({
     </section>
   );
 };
-
