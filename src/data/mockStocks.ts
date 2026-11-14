@@ -1,25 +1,41 @@
-import { StockData, TimeFrame, StockPricePoint, TickerTapeItem } from "../types/stock";
+import { StockData, TimeFrame, StockPricePoint, TickerTapeItem } from "@/types/stock";
+import { roundPriceByCurrency } from "@/lib/utils";
 
-// Helper for deterministic history points (NO Math.random)
-function createStaticHistory(basePrice: number, prevClose: number): Record<TimeFrame, StockPricePoint[]> {
-  const steps = [
-    prevClose,
-    prevClose * 0.998,
-    prevClose * 1.002,
-    prevClose * 1.005,
-    (prevClose + basePrice) / 2,
-    basePrice * 0.997,
-    basePrice * 1.001,
-    basePrice,
+// Deterministic history points with realistic OHLC structure (NO Math.random)
+function createStaticHistory(
+  basePrice: number,
+  prevClose: number,
+  currency: string = "USD"
+): Record<TimeFrame, StockPricePoint[]> {
+  const factors = [
+    0.988, 0.992, 0.996, 0.994, 0.999, 1.003, 1.001, 1.006, 1.002, 0.997,
+    1.001, 1.004, 0.998, 1.002, 1.0,
   ];
 
-  const now = new Date();
+  // Fixed anchor timestamp (rounded to nearest hour) so points are deterministic
+  const anchorMs = Math.floor(Date.now() / (60 * 1000)) * 60 * 1000;
+
   const generateSeries = (count: number, intervalMinutes: number) => {
     const list: StockPricePoint[] = [];
+    let prevBarClose = roundPriceByCurrency(prevClose, currency);
+
     for (let i = count; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * intervalMinutes * 60 * 1000);
-      const factor = steps[i % steps.length];
-      const p = Math.round(factor * 100) / 100;
+      const ts = anchorMs - i * intervalMinutes * 60 * 1000;
+      const d = new Date(ts);
+      const factor = factors[(count - i) % factors.length];
+      const rawClose = i === 0 ? basePrice : prevClose * factor;
+      const closeVal = roundPriceByCurrency(rawClose, currency);
+      const openVal = i === count ? roundPriceByCurrency(prevClose * 0.995, currency) : prevBarClose;
+
+      const spread = Math.max(
+        Math.abs(closeVal - openVal) * 0.6,
+        basePrice * 0.004
+      );
+      const highVal = roundPriceByCurrency(Math.max(openVal, closeVal) + spread, currency);
+      const lowVal = roundPriceByCurrency(Math.max(1, Math.min(openVal, closeVal) - spread), currency);
+
+      prevBarClose = closeVal;
+
       list.push({
         time: d.toLocaleDateString("id-ID", {
           month: "short",
@@ -27,23 +43,23 @@ function createStaticHistory(basePrice: number, prevClose: number): Record<TimeF
           hour: intervalMinutes < 1440 ? "2-digit" : undefined,
           minute: intervalMinutes < 1440 ? "2-digit" : undefined,
         }),
-        timestamp: d.getTime(),
-        open: p,
-        high: p,
-        low: p,
-        close: p,
-        volume: 50000,
+        timestamp: ts,
+        open: openVal,
+        high: highVal,
+        low: lowVal,
+        close: closeVal,
+        volume: 500000 + ((count - i) % 7) * 120000,
       });
     }
     return list;
   };
 
   return {
-    "1D": generateSeries(12, 30),
-    "1W": generateSeries(14, 240),
-    "1M": generateSeries(15, 1440),
-    "1Y": generateSeries(24, 10080),
-    "ALL": generateSeries(30, 43200),
+    "1D": generateSeries(24, 15),
+    "1W": generateSeries(28, 240),
+    "1M": generateSeries(22, 1440),
+    "1Y": generateSeries(36, 10080),
+    "ALL": generateSeries(40, 43200),
   };
 }
 
@@ -52,7 +68,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     id: "bmri",
     ticker: "BMRI",
     yahooSymbol: "BMRI.JK",
-    name: "Bank Mandiri (Persero) Tbk",
+    name: "PT Bank Mandiri (Persero) Tbk",
     exchange: "IDX",
     exchangeLabel: "BEI : BMRI",
     country: "Indonesia",
@@ -61,6 +77,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "IDR",
     currencySymbol: "Rp",
     price: 3720,
+    openPrice: 3750,
     previousClose: 4010,
     change: -290,
     changePercent: -7.23,
@@ -76,13 +93,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 3200,
     beta: 1.05,
     eps: 344,
-    description: "Bank BUMN terbesar di Indonesia dengan portofolio pinjaman korporasi dan konsumer terdepan serta ekosistem digital Livin' by Mandiri.",
-    insight: "Kinerja fundamental Q3 ditopang efisiensi biaya dana (CASA solid) dan percepatan adopsi wholesale banking Kopra.",
-    history: createStaticHistory(3720, 4010),
+    description:
+      "Bank BUMN terbesar di Indonesia dengan portofolio pinjaman korporasi dan konsumer terdepan serta ekosistem digital Livin' by Mandiri.",
+    insight:
+      "Kinerja fundamental Q3 ditopang efisiensi biaya dana (CASA solid) dan percepatan adopsi wholesale banking Kopra.",
+    history: createStaticHistory(3720, 4010, "IDR"),
     sparkline: [4010, 3950, 3880, 3800, 3760, 3720],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   BBCA: {
@@ -98,6 +118,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "IDR",
     currencySymbol: "Rp",
     price: 4980,
+    openPrice: 4950,
     previousClose: 4940,
     change: 40,
     changePercent: 0.81,
@@ -113,13 +134,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 4400,
     beta: 0.88,
     eps: 222,
-    description: "Bank swasta dengan kapitalisasi pasar terbesar di Indonesia, terkenal dengan basis dana murah (CASA) dominan dan kualitas aset prima.",
-    insight: "Rasio NPL gross terjaga sangat rendah di kisaran 1.8%, ditopang ekosistem transaksi perbankan ritel terkuat di Indonesia.",
-    history: createStaticHistory(4980, 4940),
+    description:
+      "Bank swasta dengan kapitalisasi pasar terbesar di Indonesia, terkenal dengan basis dana murah (CASA) dominan dan kualitas aset prima.",
+    insight:
+      "Rasio NPL gross terjaga sangat rendah di kisaran 1.8%, ditopang ekosistem transaksi perbankan ritel terkuat di Indonesia.",
+    history: createStaticHistory(4980, 4940, "IDR"),
     sparkline: [4940, 4950, 4960, 4990, 5025, 4980],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   BBRI: {
@@ -135,6 +159,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "IDR",
     currencySymbol: "Rp",
     price: 4320,
+    openPrice: 4300,
     previousClose: 4290,
     change: 30,
     changePercent: 0.70,
@@ -150,20 +175,23 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 4200,
     beta: 1.15,
     eps: 378,
-    description: "Bank spesialis pembiayaan UMKM terbesar di Indonesia dengan jaringan AgenBRILink yang merambah seluruh pelosok nusantara.",
-    insight: "Holding Ultra Mikro (BRI, Pegadaian, PNM) terus memperluas penetrasi nasabah mikro dengan pertumbuhan kredit berkelanjutan.",
-    history: createStaticHistory(4320, 4290),
+    description:
+      "Bank spesialis pembiayaan UMKM terbesar di Indonesia dengan jaringan AgenBRILink yang merambah seluruh pelosok nusantara.",
+    insight:
+      "Holding Ultra Mikro (BRI, Pegadaian, PNM) terus memperluas penetrasi nasabah mikro dengan pertumbuhan kredit berkelanjutan.",
+    history: createStaticHistory(4320, 4290, "IDR"),
     sparkline: [4290, 4300, 4310, 4340, 4360, 4320],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   TLKM: {
     id: "tlkm",
     ticker: "TLKM",
     yahooSymbol: "TLKM.JK",
-    name: "Telkom Indonesia (Persero) Tbk",
+    name: "PT Telkom Indonesia (Persero) Tbk",
     exchange: "IDX",
     exchangeLabel: "BEI : TLKM",
     country: "Indonesia",
@@ -172,6 +200,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "IDR",
     currencySymbol: "Rp",
     price: 2980,
+    openPrice: 3010,
     previousClose: 3010,
     change: -30,
     changePercent: -1.0,
@@ -187,20 +216,23 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 2780,
     beta: 0.75,
     eps: 246,
-    description: "Raksasa telekomunikasi nasional pengelola jaringan serat optik terbesar, seluler Telkomsel, serta pusat data Hyperscale Data Center.",
-    insight: "Sinergi Fixed-Mobile Convergence (FMC) meningkatkan efisiensi operasional IndiHome-Telkomsel di tengah monetisasi menara Mitratel.",
-    history: createStaticHistory(2980, 3010),
+    description:
+      "Raksasa telekomunikasi nasional pengelola jaringan serat optik terbesar, seluler Telkomsel, serta pusat data Hyperscale Data Center.",
+    insight:
+      "Sinergi Fixed-Mobile Convergence (FMC) meningkatkan efisiensi operasional IndiHome-Telkomsel di tengah monetisasi menara Mitratel.",
+    history: createStaticHistory(2980, 3010, "IDR"),
     sparkline: [3010, 3000, 2980, 2990, 2970, 2980],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   ASII: {
     id: "asii",
     ticker: "ASII",
     yahooSymbol: "ASII.JK",
-    name: "Astra International Tbk",
+    name: "PT Astra International Tbk",
     exchange: "IDX",
     exchangeLabel: "BEI : ASII",
     country: "Indonesia",
@@ -209,6 +241,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "IDR",
     currencySymbol: "Rp",
     price: 5075,
+    openPrice: 5050,
     previousClose: 5050,
     change: 25,
     changePercent: 0.50,
@@ -224,13 +257,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 4300,
     beta: 0.82,
     eps: 746,
-    description: "Konglomerasi terdiversifikasi pemimpin pasar otomotif Indonesia (Toyota, Daihatsu, Honda motor), kontraktor tambang United Tractors, dan jasa keuangan.",
-    insight: "Imbal hasil dividen kas yang sangat tinggi di atas 8% memberikan daya tarik defensif kuat di tengah kompetisi kendaraan listrik.",
-    history: createStaticHistory(5075, 5050),
+    description:
+      "Konglomerasi terdiversifikasi pemimpin pasar otomotif Indonesia (Toyota, Daihatsu, Honda motor), kontraktor tambang United Tractors, dan jasa keuangan.",
+    insight:
+      "Imbal hasil dividen kas yang sangat tinggi di atas 8% memberikan daya tarik defensif kuat di tengah kompetisi kendaraan listrik.",
+    history: createStaticHistory(5075, 5050, "IDR"),
     sparkline: [5050, 5075, 5100, 5125, 5150, 5075],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   AAPL: {
@@ -246,6 +282,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "USD",
     currencySymbol: "$",
     price: 232.84,
+    openPrice: 230.50,
     previousClose: 230.1,
     change: 2.74,
     changePercent: 1.19,
@@ -261,13 +298,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 164.08,
     beta: 1.08,
     eps: 6.73,
-    description: "Raksasa teknologi global perancang iPhone, Mac, iPad, wearables, serta penyedia layanan Apple Services dengan margin tinggi.",
-    insight: "Peluncuran fitur Apple Intelligence secara global memicu siklus upgrade iPhone 16 dengan backlog pengiriman positif di segmen Pro.",
-    history: createStaticHistory(232.84, 230.1),
+    description:
+      "Raksasa teknologi global perancang iPhone, Mac, iPad, wearables, serta penyedia layanan Apple Services dengan margin tinggi.",
+    insight:
+      "Peluncuran fitur Apple Intelligence secara global memicu siklus upgrade iPhone 16 dengan backlog pengiriman positif di segmen Pro.",
+    history: createStaticHistory(232.84, 230.1, "USD"),
     sparkline: [230.1, 230.8, 231.5, 232.2, 234.0, 232.84],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   NVDA: {
@@ -283,6 +323,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "USD",
     currencySymbol: "$",
     price: 205.56,
+    openPrice: 212.10,
     previousClose: 213.66,
     change: -8.10,
     changePercent: -3.79,
@@ -298,13 +339,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 39.23,
     beta: 1.68,
     eps: 2.68,
-    description: "Pemimpin global GPU komputasi dan arsitektur akselerator AI (Blackwell & Hopper) yang mendayai mayoritas hyperscaler dunia.",
-    insight: "Permintaan arsitektur Blackwell B200 terkonfirmasi habis terjual untuk 12 bulan ke depan didukung komitmen capex hyperscaler global.",
-    history: createStaticHistory(205.56, 213.66),
+    description:
+      "Pemimpin global GPU komputasi dan arsitektur akselerator AI (Blackwell & Hopper) yang mendayai mayoritas hyperscaler dunia.",
+    insight:
+      "Permintaan arsitektur Blackwell B200 terkonfirmasi habis terjual untuk 12 bulan ke depan didukung komitmen capex hyperscaler global.",
+    history: createStaticHistory(205.56, 213.66, "USD"),
     sparkline: [213.66, 211.2, 209.0, 207.5, 205.56],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   MSFT: {
@@ -320,6 +364,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "USD",
     currencySymbol: "$",
     price: 432.5,
+    openPrice: 429.0,
     previousClose: 428.1,
     change: 4.4,
     changePercent: 1.03,
@@ -335,13 +380,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 344.0,
     beta: 1.12,
     eps: 11.95,
-    description: "Pemimpin perangkat lunak produktivitas Microsoft 365, enterprise cloud Azure, kemitraan strategis OpenAI, dan GitHub.",
-    insight: "Pendapatan Azure Cloud tumbuh 29% didorong lonjakan beban kerja AI enterprise dari perusahaan Fortune 500.",
-    history: createStaticHistory(432.5, 428.1),
+    description:
+      "Pemimpin perangkat lunak produktivitas Microsoft 365, enterprise cloud Azure, kemitraan strategis OpenAI, dan GitHub.",
+    insight:
+      "Pendapatan Azure Cloud tumbuh 29% didorong lonjakan beban kerja AI enterprise dari perusahaan Fortune 500.",
+    history: createStaticHistory(432.5, 428.1, "USD"),
     sparkline: [428.1, 429.5, 430.8, 431.5, 432.5],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   VOO: {
@@ -357,6 +405,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "USD",
     currencySymbol: "$",
     price: 536.2,
+    openPrice: 534.5,
     previousClose: 534.1,
     change: 2.1,
     changePercent: 0.39,
@@ -372,13 +421,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 382.4,
     beta: 1.0,
     eps: 20.4,
-    description: "ETF indeks acuan paling populer di dunia yang melacak kinerja 500 emiten terbesar bursa Amerika Serikat dengan expense ratio sangat rendah 0.03%.",
-    insight: "Didukung pertumbuhan laba emiten teknologi dan sektor konsumsi yang tangguh, indeks S&P 500 mempertahankan tren jangka panjang positif.",
-    history: createStaticHistory(536.2, 534.1),
+    description:
+      "ETF indeks acuan paling populer di dunia yang melacak kinerja 500 emiten terbesar bursa Amerika Serikat dengan expense ratio sangat rendah 0.03%.",
+    insight:
+      "Didukung pertumbuhan laba emiten teknologi dan sektor konsumsi yang tangguh, indeks S&P 500 mempertahankan tren jangka panjang positif.",
+    history: createStaticHistory(536.2, 534.1, "USD"),
     sparkline: [534.1, 534.8, 535.5, 536.0, 536.2],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   "005930": {
@@ -394,6 +446,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "KRW",
     currencySymbol: "₩",
     price: 59200,
+    openPrice: 59800,
     previousClose: 60100,
     change: -900,
     changePercent: -1.5,
@@ -409,13 +462,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 57500,
     beta: 1.15,
     eps: 4198,
-    description: "Konglomerat teknologi raksasa Korea Selatan, produsen memori DRAM/NAND terbesar di dunia dan produsen ponsel pintar seri Galaxy.",
-    insight: "Sertifikasi pasokan HBM3E untuk akselerator generasi baru mendekati tahap penyelesaian untuk ekspansi kapasitas memory Device Solutions.",
-    history: createStaticHistory(59200, 60100),
+    description:
+      "Konglomerat teknologi raksasa Korea Selatan, produsen memori DRAM/NAND terbesar di dunia dan produsen ponsel pintar seri Galaxy.",
+    insight:
+      "Sertifikasi pasokan HBM3E untuk akselerator generasi baru mendekati tahap penyelesaian untuk ekspansi kapasitas memory Device Solutions.",
+    history: createStaticHistory(59200, 60100, "KRW"),
     sparkline: [60100, 59800, 59500, 59100, 59200],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   BHP: {
@@ -431,6 +487,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "AUD",
     currencySymbol: "A$",
     price: 43.15,
+    openPrice: 42.8,
     previousClose: 42.6,
     change: 0.55,
     changePercent: 1.29,
@@ -446,13 +503,16 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 38.6,
     beta: 0.92,
     eps: 3.51,
-    description: "Perusahaan tambang terbesar dunia berbasis di Melbourne, produsen utama bijih besi, tembaga transisi energi, dan batubara metalurgi.",
-    insight: "Kebutuhan tembaga dunia untuk infrastruktur energi terbarukan dan pusat data AI menopang realisasi harga komoditas jangka panjang.",
-    history: createStaticHistory(43.15, 42.6),
+    description:
+      "Perusahaan tambang terbesar dunia berbasis di Melbourne, produsen utama bijih besi, tembaga transisi energi, dan batubara metalurgi.",
+    insight:
+      "Kebutuhan tembaga dunia untuk infrastruktur energi terbarukan dan pusat data AI menopang realisasi harga komoditas jangka panjang.",
+    history: createStaticHistory(43.15, 42.6, "AUD"),
     sparkline: [42.6, 42.75, 42.9, 43.0, 43.15],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: false,
-    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN",
+    marketState: "CLOSED",
+    marketStateText: "MARKET CLOSED · HARGA PENUTUPAN RESMI",
     source: "cached",
   },
   BTC: {
@@ -468,6 +528,7 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     currency: "USD",
     currencySymbol: "$",
     price: 77367.35,
+    openPrice: 77750.0,
     previousClose: 77791.38,
     change: -424.03,
     changePercent: -0.54,
@@ -483,29 +544,32 @@ export const MOCK_STOCKS: Record<string, StockData> = {
     low52w: 34200.0,
     beta: 2.1,
     eps: 0,
-    description: "Aset moneter terdesentralisasi pertama di dunia dengan suplai tetap 21 juta koin, diakui institusi global sebagai emas digital.",
-    insight: "Inflow ETF Spot US berkelanjutan mencatat akumulasi modal institusional jangka panjang pada likuiditas pasar spot global.",
-    history: createStaticHistory(77367.35, 77791.38),
+    description:
+      "Aset moneter terdesentralisasi pertama di dunia dengan suplai tetap 21 juta koin, diakui institusi global sebagai emas digital.",
+    insight:
+      "Inflow ETF Spot US berkelanjutan mencatat akumulasi modal institusional jangka panjang pada likuiditas pasar spot global.",
+    history: createStaticHistory(77367.35, 77791.38, "USD"),
     sparkline: [77791.38, 77500, 77650, 77200, 77367.35],
     lastUpdated: new Date().toISOString(),
     isMarketOpen: true,
+    marketState: "REGULAR",
     marketStateText: "MARKET OPEN · LIVE 24/7",
     source: "cached",
   },
 };
 
-// Initial Global Tape items (synced with actual real prices above)
+// Initial Global Tape items (First item is BBCA (IDX), synced with actual real prices)
 export const INITIAL_TICKER_TAPE: TickerTapeItem[] = [
-  { ticker: "BBCA", exchange: "IDX", price: 4980, priceFormatted: "Rp 4.980", change: 40, changePercent: 0.81, currencySymbol: "Rp" },
-  { ticker: "BMRI", exchange: "IDX", price: 3720, priceFormatted: "Rp 3.720", change: -290, changePercent: -7.23, currencySymbol: "Rp" },
-  { ticker: "BBRI", exchange: "IDX", price: 4320, priceFormatted: "Rp 4.320", change: 30, changePercent: 0.70, currencySymbol: "Rp" },
-  { ticker: "TLKM", exchange: "IDX", price: 2980, priceFormatted: "Rp 2.980", change: -30, changePercent: -1.0, currencySymbol: "Rp" },
-  { ticker: "ASII", exchange: "IDX", price: 5075, priceFormatted: "Rp 5.075", change: 25, changePercent: 0.50, currencySymbol: "Rp" },
-  { ticker: "AAPL", exchange: "NASDAQ", price: 232.84, priceFormatted: "$232.84", change: 2.74, changePercent: 1.19, currencySymbol: "$" },
-  { ticker: "NVDA", exchange: "NASDAQ", price: 205.56, priceFormatted: "$205.56", change: -8.10, changePercent: -3.79, currencySymbol: "$" },
-  { ticker: "MSFT", exchange: "NASDAQ", price: 432.50, priceFormatted: "$432.50", change: 4.40, changePercent: 1.03, currencySymbol: "$" },
-  { ticker: "VOO", exchange: "NYSE", price: 536.20, priceFormatted: "$536.20", change: 2.10, changePercent: 0.39, currencySymbol: "$" },
-  { ticker: "005930", exchange: "KRX", price: 59200, priceFormatted: "₩ 59.200", change: -900, changePercent: -1.50, currencySymbol: "₩" },
-  { ticker: "BHP", exchange: "ASX", price: 43.15, priceFormatted: "A$ 43.15", change: 0.55, changePercent: 1.29, currencySymbol: "A$" },
-  { ticker: "BTC", exchange: "CRYPTO", price: 77367.35, priceFormatted: "$77,367.35", change: -424.03, changePercent: -0.54, currencySymbol: "$" },
+  { ticker: "BBCA", yahooSymbol: "BBCA.JK", exchange: "IDX", price: 4980, priceFormatted: "Rp 4.980", change: 40, changePercent: 0.81, currencySymbol: "Rp", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "BMRI", yahooSymbol: "BMRI.JK", exchange: "IDX", price: 3720, priceFormatted: "Rp 3.720", change: -290, changePercent: -7.23, currencySymbol: "Rp", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "BBRI", yahooSymbol: "BBRI.JK", exchange: "IDX", price: 4320, priceFormatted: "Rp 4.320", change: 30, changePercent: 0.70, currencySymbol: "Rp", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "TLKM", yahooSymbol: "TLKM.JK", exchange: "IDX", price: 2980, priceFormatted: "Rp 2.980", change: -30, changePercent: -1.0, currencySymbol: "Rp", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "ASII", yahooSymbol: "ASII.JK", exchange: "IDX", price: 5075, priceFormatted: "Rp 5.075", change: 25, changePercent: 0.50, currencySymbol: "Rp", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "AAPL", yahooSymbol: "AAPL", exchange: "NASDAQ", price: 232.84, priceFormatted: "$232.84", change: 2.74, changePercent: 1.19, currencySymbol: "$", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "NVDA", yahooSymbol: "NVDA", exchange: "NASDAQ", price: 205.56, priceFormatted: "$205.56", change: -8.10, changePercent: -3.79, currencySymbol: "$", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "MSFT", yahooSymbol: "MSFT", exchange: "NASDAQ", price: 432.50, priceFormatted: "$432.50", change: 4.40, changePercent: 1.03, currencySymbol: "$", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "VOO", yahooSymbol: "VOO", exchange: "NYSE", price: 536.20, priceFormatted: "$536.20", change: 2.10, changePercent: 0.39, currencySymbol: "$", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "005930", yahooSymbol: "005930.KS", exchange: "KRX", price: 59200, priceFormatted: "₩ 59,200", change: -900, changePercent: -1.50, currencySymbol: "₩", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "BHP", yahooSymbol: "BHP.AX", exchange: "ASX", price: 43.15, priceFormatted: "A$ 43.15", change: 0.55, changePercent: 1.29, currencySymbol: "A$", isMarketOpen: false, marketState: "CLOSED" },
+  { ticker: "BTC", yahooSymbol: "BTC-USD", exchange: "CRYPTO", price: 77367.35, priceFormatted: "$77,367.35", change: -424.03, changePercent: -0.54, currencySymbol: "$", isMarketOpen: true, marketState: "REGULAR" },
 ];

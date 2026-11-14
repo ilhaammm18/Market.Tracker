@@ -2,9 +2,15 @@ export type MarketRegion = "ALL" | "IDX" | "US" | "KRX" | "ASX" | "ETF" | "CRYPT
 
 export type TimeFrame = "1D" | "1W" | "1M" | "1Y" | "ALL";
 
+export type ChartMode = "area" | "candlestick";
+
+export type MarketState = "REGULAR" | "CLOSED" | "PRE" | "POST";
+
+export type NavSectionId = "overview" | "fundamentals" | "compare" | "news";
+
 export interface StockPricePoint {
-  time: string; // ISO date or time string
-  timestamp: number;
+  time: string; // Formatted date/time label for UI
+  timestamp: number; // Unix timestamp in milliseconds
   open: number;
   high: number;
   low: number;
@@ -17,14 +23,15 @@ export interface StockData {
   ticker: string;
   yahooSymbol: string;
   name: string;
-  exchange: "IDX" | "NASDAQ" | "NYSE" | "KRX" | "ASX" | "CRYPTO";
-  exchangeLabel: string; // e.g. "BEI : BMRI"
+  exchange: "IDX" | "NASDAQ" | "NYSE" | "KRX" | "ASX" | "CRYPTO" | string;
+  exchangeLabel: string;
   country: string;
-  category: string; // e.g. "BLUE-CHIP · PERBANKAN"
+  category: string;
   sector: string;
-  currency: "IDR" | "USD" | "KRW" | "AUD";
+  currency: "IDR" | "USD" | "KRW" | "AUD" | string;
   currencySymbol: string;
   price: number;
+  openPrice: number;
   previousClose: number;
   change: number;
   changePercent: number;
@@ -46,12 +53,14 @@ export interface StockData {
   sparkline: number[];
   lastUpdated: string;
   isMarketOpen: boolean;
+  marketState: MarketState;
   marketStateText: string;
   source: "yahoo_finance_live" | "cached";
 }
 
 export interface TickerTapeItem {
   ticker: string;
+  yahooSymbol?: string;
   exchange: string;
   price: number;
   priceFormatted: string;
@@ -59,6 +68,7 @@ export interface TickerTapeItem {
   changePercent: number;
   currencySymbol: string;
   isMarketOpen?: boolean;
+  marketState?: MarketState;
 }
 
 export interface StockApiResponse {
@@ -66,4 +76,36 @@ export interface StockApiResponse {
   source: "yahoo_finance_live" | "cached";
   stock: StockData;
   message?: string;
+}
+
+export interface SearchQuoteItem {
+  symbol: string;
+  cleanTicker: string;
+  shortName: string;
+  longName: string;
+  exchange: string;
+  exchangeDisplay: string;
+  quoteType: string;
+  sector?: string;
+  industry?: string;
+  isIdx: boolean;
+}
+
+export interface StockNewsItem {
+  uuid: string;
+  title: string;
+  publisher: string;
+  link: string;
+  providerPublishTime: number;
+  publishedAtText: string;
+  type: string;
+  thumbnailUrl?: string;
+  relatedTickers: string[];
+}
+
+export interface SearchApiResponse {
+  success: boolean;
+  query: string;
+  quotes: SearchQuoteItem[];
+  news: StockNewsItem[];
 }
