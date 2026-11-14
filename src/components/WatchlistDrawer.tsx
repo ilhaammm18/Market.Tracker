@@ -1,14 +1,16 @@
 "use client";
 
 import React from "react";
-import { X, Star, Trash2, ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
+import { X, Star, Trash2, TrendingUp, TrendingDown } from "lucide-react";
 import { MOCK_STOCKS } from "@/data/mockStocks";
+import { StockData } from "@/types/stock";
 import { formatCurrency } from "@/lib/utils";
 
 interface WatchlistDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   watchlist: string[];
+  knownStocks?: Record<string, StockData>;
   onSelectStock: (ticker: string) => void;
   onRemoveFromWatchlist: (ticker: string) => void;
 }
@@ -17,20 +19,20 @@ export const WatchlistDrawer: React.FC<WatchlistDrawerProps> = ({
   isOpen,
   onClose,
   watchlist,
+  knownStocks = MOCK_STOCKS,
   onSelectStock,
   onRemoveFromWatchlist,
 }) => {
   if (!isOpen) return null;
 
   const watchedStocks = watchlist
-    .map((ticker) => MOCK_STOCKS[ticker])
+    .map((ticker) => knownStocks[ticker] || MOCK_STOCKS[ticker])
     .filter(Boolean);
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="absolute inset-y-0 right-0 max-w-full flex pl-10">
         <div className="w-screen max-w-md bg-[#0A192F] border-l border-white/10 shadow-2xl flex flex-col justify-between">
-          
           {/* Drawer Header */}
           <div className="p-5 border-b border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -67,7 +69,7 @@ export const WatchlistDrawer: React.FC<WatchlistDrawerProps> = ({
                     <div
                       className="flex-1 cursor-pointer"
                       onClick={() => {
-                        onSelectStock(s.ticker);
+                        onSelectStock(s.yahooSymbol || s.ticker);
                         onClose();
                       }}
                     >
@@ -93,8 +95,15 @@ export const WatchlistDrawer: React.FC<WatchlistDrawerProps> = ({
                           isPositive ? "text-emerald-400" : "text-rose-400"
                         }`}
                       >
-                        {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        <span>{isPositive ? "+" : ""}{s.changePercent.toFixed(2)}%</span>
+                        {isPositive ? (
+                          <TrendingUp className="w-3 h-3" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3" />
+                        )}
+                        <span>
+                          {isPositive ? "+" : ""}
+                          {s.changePercent.toFixed(2)}%
+                        </span>
                       </div>
                     </div>
 
@@ -129,10 +138,8 @@ export const WatchlistDrawer: React.FC<WatchlistDrawerProps> = ({
               Tutup Drawer
             </button>
           </div>
-
         </div>
       </div>
     </div>
   );
 };
-
