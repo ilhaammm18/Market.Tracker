@@ -109,3 +109,17 @@ export interface SearchApiResponse {
   quotes: SearchQuoteItem[];
   news: StockNewsItem[];
 }
+
+export type RSISignal = "Overbought" | "Oversold" | "Neutral";
+
+export interface IndicatorPoint {
+  time: number; // UNIX timestamp in seconds (UTCTimestamp compatible)
+  timestamp: number; // Unix timestamp in milliseconds
+  value: number;
+}
+
+export interface RSIResult {
+  value: number;
+  signal: RSISignal;
+  series: IndicatorPoint[];
+}
