@@ -55,11 +55,11 @@ function createStaticHistory(
   };
 
   return {
-    "1D": generateSeries(24, 15),
-    "1W": generateSeries(28, 240),
-    "1M": generateSeries(22, 1440),
-    "1Y": generateSeries(36, 10080),
-    "ALL": generateSeries(40, 43200),
+    "1D": generateSeries(60, 15),
+    "1W": generateSeries(60, 240),
+    "1M": generateSeries(60, 1440),
+    "1Y": generateSeries(72, 10080),
+    "ALL": generateSeries(80, 43200),
   };
 }
 
