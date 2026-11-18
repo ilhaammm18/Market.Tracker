@@ -1,26 +1,22 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { HeaderNav } from "@/components/HeaderNav";
 import { GlobalTickerTape } from "@/components/GlobalTickerTape";
-import { HeroSection } from "@/components/HeroSection";
-import { BentoFundamentals } from "@/components/BentoFundamentals";
-import { CompareAndSimulator } from "@/components/CompareAndSimulator";
-import { MarketNewsSection } from "@/components/MarketNewsSection";
-import { MarketExplorer } from "@/components/MarketExplorer";
+import { LandingSection } from "@/components/LandingSection";
 import { WatchlistDrawer } from "@/components/WatchlistDrawer";
 import { ApiSettingsModal } from "@/components/ApiSettingsModal";
 import { Footer } from "@/components/Footer";
-import { StockData, TimeFrame, TickerTapeItem, NavSectionId } from "@/types/stock";
+import { StockData, TickerTapeItem } from "@/types/stock";
 import { MOCK_STOCKS, INITIAL_TICKER_TAPE } from "@/data/mockStocks";
-import { formatCurrency } from "@/lib/utils";
 
-export default function Home() {
-  const [activeTicker, setActiveTicker] = useState<string>("BMRI");
-  const [timeframe, setTimeframe] = useState<TimeFrame>("1D");
-  const [stock, setStock] = useState<StockData>(MOCK_STOCKS["BMRI"]);
-  const [knownStocks, setKnownStocks] = useState<Record<string, StockData>>(MOCK_STOCKS);
-  const [tapeItems, setTapeItems] = useState<TickerTapeItem[]>(INITIAL_TICKER_TAPE);
+export default function HomePage() {
+  const router = useRouter();
+  const [knownStocks, setKnownStocks] =
+    useState<Record<string, StockData>>(MOCK_STOCKS);
+  const [tapeItems, setTapeItems] =
+    useState<TickerTapeItem[]>(INITIAL_TICKER_TAPE);
   const [watchlist, setWatchlist] = useState<string[]>([
     "BMRI",
     "BBCA",
@@ -31,10 +27,8 @@ export default function Home() {
   ]);
   const [watchlistOpen, setWatchlistOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
-  const [isLiveUpdating] = useState<boolean>(true);
-  const [activeSection, setActiveSection] = useState<NavSectionId>("overview");
 
-  // Load watchlist from LocalStorage on mount
+  // Load watchlist from LocalStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -51,55 +45,48 @@ export default function Home() {
     }
   }, []);
 
-  // Scroll-spy for 01 / 04 — 04 / 04 navigation indicator
-  useEffect(() => {
-    const sectionMap: { id: NavSectionId; domId: string }[] = [
-      { id: "overview", domId: "section-overview" },
-      { id: "fundamentals", domId: "section-fundamentals" },
-      { id: "compare", domId: "section-compare" },
-      { id: "news", domId: "section-news" },
-    ];
+  // Fetch real-time ticker tape & hydrate snapshot cards
+  const fetchTape = useCallback(async () => {
+    try {
+      const res = await fetch("/api/stock?action=tape");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          const freshTape: TickerTapeItem[] = json.data;
+          setTapeItems(freshTape);
 
-    const handleScroll = () => {
-      const viewportTrigger = window.innerHeight * 0.35;
-      let current: NavSectionId = "overview";
-
-      for (const sec of sectionMap) {
-        const el = document.getElementById(sec.domId);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.top <= viewportTrigger) {
-            current = sec.id;
-          }
+          setKnownStocks((prev) => {
+            const next = { ...prev };
+            for (const item of freshTape) {
+              if (next[item.ticker]) {
+                next[item.ticker] = {
+                  ...next[item.ticker],
+                  price: item.price,
+                  change: item.change,
+                  changePercent: item.changePercent,
+                  isMarketOpen:
+                    item.isMarketOpen ?? next[item.ticker].isMarketOpen,
+                  marketState:
+                    item.marketState ?? next[item.ticker].marketState,
+                };
+              }
+            }
+            return next;
+          });
         }
       }
-      setActiveSection(current);
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-    return () => window.removeEventListener("scroll", handleScroll);
+    } catch {
+      // Keep existing snapshot state
+    }
   }, []);
 
-  const handleNavigateSection = (sectionId: NavSectionId) => {
-    setActiveSection(sectionId);
-    const el = document.getElementById(`section-${sectionId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
+  useEffect(() => {
+    fetchTape();
+  }, [fetchTape]);
 
-  // Save watchlist to LocalStorage
-  const handleToggleWatchlist = (ticker: string) => {
-    const clean = ticker.replace(/\.(JK|KS|KQ|AX)$/i, "").replace(/-USD$/i, "").toUpperCase();
-    setWatchlist((prev) => {
-      const exists = prev.includes(clean);
-      const nextList = exists ? prev.filter((t) => t !== clean) : [...prev, clean];
-      if (typeof window !== "undefined") {
-        localStorage.setItem("gsi_watchlist", JSON.stringify(nextList));
-      }
-      return nextList;
-    });
+  const handleNavigateToMarket = (tickerOrSymbol: string) => {
+    const clean = tickerOrSymbol.trim().toUpperCase();
+    router.push(`/market?ticker=${encodeURIComponent(clean)}`);
   };
 
   const handleRemoveFromWatchlist = (ticker: string) => {
@@ -112,212 +99,46 @@ export default function Home() {
     });
   };
 
-  // Fetch real-time ticker tape from server API route
-  const fetchTape = useCallback(async () => {
-    try {
-      const res = await fetch("/api/stock?action=tape");
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          const freshTape: TickerTapeItem[] = json.data;
-          setTapeItems(freshTape);
-
-          // Sync knownStocks prices with fresh tape quotes
-          setKnownStocks((prev) => {
-            const next = { ...prev };
-            for (const item of freshTape) {
-              if (next[item.ticker]) {
-                next[item.ticker] = {
-                  ...next[item.ticker],
-                  price: item.price,
-                  change: item.change,
-                  changePercent: item.changePercent,
-                  isMarketOpen: item.isMarketOpen ?? next[item.ticker].isMarketOpen,
-                  marketState: item.marketState ?? next[item.ticker].marketState,
-                };
-              }
-            }
-            return next;
-          });
-        }
-      }
-    } catch {
-      // Keep existing tape items
-    }
-  }, []);
-
-  // Fetch single active stock from Yahoo Finance server route
-  const fetchStock = useCallback(async (tickerToFetch: string, tf: TimeFrame) => {
-    try {
-      const res = await fetch(
-        `/api/stock?ticker=${encodeURIComponent(tickerToFetch)}&timeframe=${tf}`
-      );
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.stock) {
-          const loadedStock: StockData = json.stock;
-          setStock(loadedStock);
-
-          // Cache in knownStocks for Watchlist & Explorer
-          setKnownStocks((prev) => ({
-            ...prev,
-            [loadedStock.ticker]: loadedStock,
-          }));
-
-          // Synchronize exact price in Global Ticker Tape from the same API state
-          const formattedPrice = formatCurrency(
-            loadedStock.price,
-            loadedStock.currency,
-            loadedStock.currencySymbol
-          );
-
-          setTapeItems((prevTape) => {
-            const existsInTape = prevTape.some(
-              (item) => item.ticker.toUpperCase() === loadedStock.ticker.toUpperCase()
-            );
-
-            if (existsInTape) {
-              return prevTape.map((item) => {
-                if (item.ticker.toUpperCase() === loadedStock.ticker.toUpperCase()) {
-                  return {
-                    ...item,
-                    price: loadedStock.price,
-                    priceFormatted: formattedPrice,
-                    change: loadedStock.change,
-                    changePercent: loadedStock.changePercent,
-                    isMarketOpen: loadedStock.isMarketOpen,
-                    marketState: loadedStock.marketState,
-                  };
-                }
-                return item;
-              });
-            }
-
-            // If user searched a custom global stock not in default tape, keep BBCA (IDX) first and insert after
-            const newTapeItem: TickerTapeItem = {
-              ticker: loadedStock.ticker,
-              yahooSymbol: loadedStock.yahooSymbol,
-              exchange: loadedStock.exchange,
-              price: loadedStock.price,
-              priceFormatted: formattedPrice,
-              change: loadedStock.change,
-              changePercent: loadedStock.changePercent,
-              currencySymbol: loadedStock.currencySymbol,
-              isMarketOpen: loadedStock.isMarketOpen,
-              marketState: loadedStock.marketState,
-            };
-
-            if (prevTape.length > 0) {
-              return [prevTape[0], newTapeItem, ...prevTape.slice(1)];
-            }
-            return [newTapeItem];
-          });
-          return;
-        }
-      }
-    } catch {
-      // Fallback handled below
-    }
-
-    const cleanKey = tickerToFetch
-      .replace(/\.(JK|KS|KQ|AX)$/i, "")
-      .replace(/-USD$/i, "")
-      .toUpperCase();
-    const fallback = MOCK_STOCKS[cleanKey] || MOCK_STOCKS["BMRI"];
-    setStock(fallback);
-  }, []);
-
-  // Initial load & when activeTicker or timeframe changes
-  useEffect(() => {
-    fetchStock(activeTicker, timeframe);
-  }, [activeTicker, timeframe, fetchStock]);
-
-  useEffect(() => {
-    fetchTape();
-  }, [fetchTape]);
-
-  // Periodic Auto-refresh: only poll if market is open (REGULAR) to prevent unnecessary calls when market is closed
-  useEffect(() => {
-    if (!isLiveUpdating) return;
-    const interval = setInterval(() => {
-      if (stock.marketState === "REGULAR" || stock.isMarketOpen) {
-        fetchStock(activeTicker, timeframe);
-      }
-      fetchTape();
-    }, 20000);
-    return () => clearInterval(interval);
-  }, [activeTicker, timeframe, isLiveUpdating, stock.marketState, stock.isMarketOpen, fetchStock, fetchTape]);
-
-  const handleSelectStock = (tickerOrSymbol: string) => {
-    setActiveTicker(tickerOrSymbol.trim().toUpperCase());
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const featuredStock = knownStocks["BBCA"] || MOCK_STOCKS["BBCA"];
 
   return (
     <main className="min-h-screen bg-[#040914] text-slate-100 flex flex-col justify-between selection:bg-[#F5B700] selection:text-navy-950">
-      {/* 1. Header Navigation with Interactive 01/04 Indicator & Global Search */}
+      {/* 1. Header Navigation with Route Links (Home vs Market Terminal) & Global Search */}
       <HeaderNav
-        activeStock={stock}
-        onSelectStock={handleSelectStock}
+        activeStock={featuredStock}
+        onSelectStock={handleNavigateToMarket}
         watchlistCount={watchlist.length}
         onOpenWatchlist={() => setWatchlistOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
-        isLiveUpdating={isLiveUpdating}
-        activeSection={activeSection}
-        onNavigateSection={handleNavigateSection}
       />
 
-      {/* Global Ticker Tape Marquee (Synchronized exact real prices, starting with BBCA (IDX)) */}
+      {/* 2. Global Ticker Tape at the Very Top */}
       <GlobalTickerTape
         tapeItems={tapeItems}
-        onSelectStock={handleSelectStock}
-        activeTicker={stock.ticker}
+        onSelectStock={handleNavigateToMarket}
+        activeTicker=""
       />
 
-      {/* 01 / 04 — OVERVIEW: Hero Section (Split Layout + Intelligence Brief + Orbital Chart) */}
-      <HeroSection
-        stock={stock}
-        timeframe={timeframe}
-        onTimeframeChange={setTimeframe}
-        isWatchlisted={watchlist.includes(stock.ticker)}
-        onToggleWatchlist={handleToggleWatchlist}
-      />
-
-      {/* 02 / 04 — FUNDAMENTALS: Bento Grid Fundamental & Statistik Pasar Lengkap */}
-      <BentoFundamentals stock={stock} />
-
-      {/* 03 / 04 — COMPARE & SIMULATOR: Head-to-Head Return Chart & Smart Lot Calculator */}
-      <CompareAndSimulator stock={stock} />
-
-      {/* 04 / 04 — MARKET NEWS: Latest Stock News from /api/search */}
-      <MarketNewsSection stock={stock} onSelectStock={handleSelectStock} />
-
-      {/* Multi-Market Filter & Explorer */}
-      <MarketExplorer
-        activeTicker={stock.ticker}
+      {/* 3. Modern Fintech Landing Section (Hero, Live Market Snapshot & Platform Capabilities) */}
+      <LandingSection
         knownStocks={knownStocks}
-        onSelectStock={handleSelectStock}
-        watchlist={watchlist}
-        onToggleWatchlist={handleToggleWatchlist}
+        onSelectStock={handleNavigateToMarket}
       />
 
-      {/* Drawers and Modals */}
+      {/* Drawers & Modals */}
       <WatchlistDrawer
         isOpen={watchlistOpen}
         onClose={() => setWatchlistOpen(false)}
         watchlist={watchlist}
         knownStocks={knownStocks}
-        onSelectStock={handleSelectStock}
+        onSelectStock={handleNavigateToMarket}
         onRemoveFromWatchlist={handleRemoveFromWatchlist}
       />
 
       <ApiSettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        onRefreshData={() => {
-          fetchStock(activeTicker, timeframe);
-          fetchTape();
-        }}
+        onRefreshData={fetchTape}
       />
 
       {/* Footer */}
