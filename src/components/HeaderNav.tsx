@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Search,
   Command,
@@ -13,23 +15,27 @@ import {
   Globe2,
   ChevronDown,
   Newspaper,
-  BarChart2,
-  Calculator,
-  Sparkles,
+  Home,
+  LineChart,
 } from "lucide-react";
-import { StockData, SearchQuoteItem, StockNewsItem, NavSectionId } from "@/types/stock";
+import {
+  StockData,
+  SearchQuoteItem,
+  StockNewsItem,
+  NavSectionId,
+} from "@/types/stock";
 import { MOCK_STOCKS } from "@/data/mockStocks";
 import { formatCurrency } from "@/lib/utils";
 
 interface HeaderNavProps {
   activeStock: StockData;
   onSelectStock: (ticker: string) => void;
-  watchlistCount: number;
-  onOpenWatchlist: () => void;
-  onOpenSettings: () => void;
-  isLiveUpdating: boolean;
-  activeSection: NavSectionId;
-  onNavigateSection: (section: NavSectionId) => void;
+  watchlistCount?: number;
+  onOpenWatchlist?: () => void;
+  onOpenSettings?: () => void;
+  isLiveUpdating?: boolean;
+  activeSection?: NavSectionId;
+  onNavigateSection?: (section: NavSectionId) => void;
 }
 
 export const NAV_SECTIONS: {
@@ -67,12 +73,15 @@ export const NAV_SECTIONS: {
 export const HeaderNav: React.FC<HeaderNavProps> = ({
   activeStock,
   onSelectStock,
-  watchlistCount,
+  watchlistCount = 0,
   onOpenWatchlist,
   onOpenSettings,
-  activeSection,
+  activeSection = "overview",
   onNavigateSection,
 }) => {
+  const pathname = usePathname();
+  const isMarketRoute = pathname?.startsWith("/market");
+
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -85,7 +94,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
   const currentNav =
     NAV_SECTIONS.find((s) => s.id === activeSection) || NAV_SECTIONS[0];
-  const currentNavIndex = NAV_SECTIONS.findIndex((s) => s.id === activeSection) + 1;
+  const currentNavIndex =
+    NAV_SECTIONS.findIndex((s) => s.id === activeSection) + 1;
 
   // Keyboard shortcut Cmd+K / Ctrl+K
   useEffect(() => {
@@ -106,7 +116,10 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   // Close nav dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (navDropdownRef.current && !navDropdownRef.current.contains(e.target as Node)) {
+      if (
+        navDropdownRef.current &&
+        !navDropdownRef.current.contains(e.target as Node)
+      ) {
         setNavMenuOpen(false);
       }
     };
@@ -134,12 +147,16 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     setIsSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`);
+        const res = await fetch(
+          `/api/search?q=${encodeURIComponent(trimmed)}`
+        );
         if (res.ok) {
           const json = await res.json();
           if (json.success) {
             setLiveQuotes(Array.isArray(json.quotes) ? json.quotes : []);
-            setLiveNewsPreview(Array.isArray(json.news) ? json.news.slice(0, 2) : []);
+            setLiveNewsPreview(
+              Array.isArray(json.news) ? json.news.slice(0, 2) : []
+            );
           }
         }
       } catch {
@@ -171,33 +188,82 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
     }
   };
 
-  const isRegularOpen = activeStock.marketState === "REGULAR" || activeStock.isMarketOpen;
+  const isRegularOpen =
+    activeStock.marketState === "REGULAR" || activeStock.isMarketOpen;
 
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#040914]/85 backdrop-blur-xl transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-3">
-          {/* Left: Active Stock Badge & Logo */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="relative group flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#F5B700] to-[#E5A700] text-navy-950 font-black text-sm flex items-center justify-center shadow-gold font-mono tracking-wider ring-2 ring-[#F5B700]/30 transition-transform group-hover:scale-105">
-                {activeStock.ticker.slice(0, 2)}
+          {/* Left: Brand / Active Stock Badge & Route Switcher (Home vs Market Terminal) */}
+          <div className="flex items-center gap-3 lg:gap-5 shrink-0">
+            <Link
+              href="/"
+              className="relative group flex items-center gap-3"
+              title="Market.Tracker — Institutional Global Market Intelligence"
+            >
+              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#F5B700] to-[#E5A700] text-navy-950 font-black text-sm flex items-center justify-center shadow-gold font-mono tracking-wider ring-2 ring-[#F5B700]/30 transition-transform group-hover:scale-105">
+                {isMarketRoute ? activeStock.ticker.slice(0, 2) : "MT"}
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5 font-mono text-sm sm:text-base font-bold text-white tracking-wider">
-                  <span className="text-[#F5B700]">{activeStock.ticker}</span>
-                  <span className="text-white/40">/</span>
-                  <span className="text-white/80">{activeStock.exchange}</span>
+                  {isMarketRoute ? (
+                    <>
+                      <span className="text-[#F5B700]">
+                        {activeStock.ticker}
+                      </span>
+                      <span className="text-white/40">/</span>
+                      <span className="text-white/80">
+                        {activeStock.exchange}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-white">MARKET</span>
+                      <span className="text-[#F5B700]">.TRACKER</span>
+                    </>
+                  )}
                 </div>
-                <span className="text-[11px] text-white/50 truncate max-w-[120px] sm:max-w-[180px]">
-                  {activeStock.name}
+                <span className="text-[11px] text-white/50 truncate max-w-[110px] sm:max-w-[160px]">
+                  {isMarketRoute
+                    ? activeStock.name
+                    : "Global Market Intelligence"}
                 </span>
               </div>
-            </div>
+            </Link>
+
+            {/* Route Navigation Links: Home (/) & Market Terminal (/market) */}
+            <nav
+              aria-label="Main Route Navigation"
+              className="hidden sm:flex items-center gap-1 p-1 rounded-xl bg-white/[0.03] border border-white/[0.08]"
+            >
+              <Link
+                href="/"
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  !isMarketRoute
+                    ? "bg-[#F5B700] text-navy-950 shadow-gold"
+                    : "text-white/65 hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <Home className="w-3.5 h-3.5" />
+                <span>Home</span>
+              </Link>
+              <Link
+                href="/market"
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition-all ${
+                  isMarketRoute
+                    ? "bg-[#F5B700] text-navy-950 shadow-gold"
+                    : "text-white/65 hover:text-white hover:bg-white/[0.06]"
+                }`}
+              >
+                <LineChart className="w-3.5 h-3.5" />
+                <span>Market Terminal</span>
+              </Link>
+            </nav>
           </div>
 
           {/* Center: Global Search Bar (Cmd+K) */}
-          <div className="flex-1 max-w-lg mx-1 sm:mx-4">
+          <div className="flex-1 max-w-md mx-1 sm:mx-3">
             <button
               onClick={() => setSearchOpen(true)}
               className="w-full h-11 px-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.09] hover:border-[#F5B700]/40 flex items-center justify-between text-sm text-white/50 transition-all duration-200 group shadow-inner"
@@ -205,10 +271,10 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               <div className="flex items-center gap-2.5 truncate">
                 <Search className="w-4 h-4 text-white/40 group-hover:text-[#F5B700] transition-colors shrink-0" />
                 <span className="text-white/40 group-hover:text-white/70 transition-colors truncate text-xs sm:text-sm">
-                  Cari saham dunia (BBCA, BREN, ANTM, AAPL, VOO, BTC)...
+                  Cari saham dunia (BBCA, BREN, NVDA, AAPL, BTC)...
                 </span>
               </div>
-              <div className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.08] border border-white/[0.1] text-[11px] font-mono text-white/60 shrink-0 ml-2">
+              <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-white/[0.08] border border-white/[0.1] text-[11px] font-mono text-white/60 shrink-0 ml-2">
                 <Command className="w-3 h-3" />
                 <span>K</span>
               </div>
@@ -216,127 +282,155 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
           </div>
 
           {/* Right: Interactive 01/04 Navigation, Watchlist & Market State Badge */}
-          <div className="flex items-center gap-2 sm:gap-3.5 shrink-0">
-            {/* Interactive Page/Section Indicator (01 / 04 — OVERVIEW) */}
-            <div ref={navDropdownRef} className="relative hidden md:block">
-              <div className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-[#F5B700]/40 rounded-xl px-3 py-1.5 transition-all">
-                {/* Direct Quick Number Pills 01-04 */}
-                <div className="hidden xl:flex items-center gap-1 pr-2 border-r border-white/10">
-                  {NAV_SECTIONS.map((sec) => {
-                    const active = sec.id === activeSection;
-                    return (
-                      <button
-                        key={sec.id}
-                        type="button"
-                        onClick={() => onNavigateSection(sec.id)}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
-                          active
-                            ? "bg-[#F5B700] text-navy-950 shadow-gold"
-                            : "text-white/45 hover:text-white hover:bg-white/10"
-                        }`}
-                        title={`Scroll ke ${sec.num} — ${sec.label}`}
-                      >
-                        {sec.num}
-                      </button>
-                    );
-                  })}
-                </div>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Mobile Quick Link to Toggle Route */}
+            <Link
+              href={isMarketRoute ? "/" : "/market"}
+              className="sm:hidden px-2.5 py-1.5 rounded-xl bg-[#F5B700]/15 border border-[#F5B700]/40 text-[#F5B700] font-mono text-[11px] font-bold flex items-center gap-1"
+            >
+              {isMarketRoute ? (
+                <>
+                  <Home className="w-3.5 h-3.5" />
+                  <span>Home</span>
+                </>
+              ) : (
+                <>
+                  <LineChart className="w-3.5 h-3.5" />
+                  <span>Terminal</span>
+                </>
+              )}
+            </Link>
 
-                {/* Active Section Dropdown Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setNavMenuOpen((prev) => !prev)}
-                  className="flex flex-col items-end text-right cursor-pointer"
-                  title="Klik untuk navigasi cepat antar seksi (01 - 04)"
-                >
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-wider font-semibold text-white/90">
-                    <span className="text-[#F5B700] font-bold">{currentNav.num} / 04</span>
-                    <span className="text-white/40">—</span>
-                    <span className="text-white/80 uppercase">{currentNav.label}</span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 text-[#F5B700] transition-transform duration-200 ${
-                        navMenuOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </div>
-                  {/* Dynamic Progress Bar (25%, 50%, 75%, 100%) */}
-                  <div className="w-full h-1 bg-white/10 rounded-full mt-1 overflow-hidden">
-                    <div
-                      className="h-full bg-[#F5B700] rounded-full transition-all duration-300"
-                      style={{ width: `${(currentNavIndex / 4) * 100}%` }}
-                    />
-                  </div>
-                </button>
-              </div>
-
-              {/* Section Navigation Dropdown Menu */}
-              {navMenuOpen && (
-                <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#0A192F]/95 border border-white/15 shadow-2xl backdrop-blur-2xl p-2 z-50 ring-1 ring-[#F5B700]/25 animate-in fade-in duration-150">
-                  <div className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/[0.06] mb-1">
-                    Navigasi Cepat Halaman (01 / 04)
-                  </div>
-                  {NAV_SECTIONS.map((sec) => {
-                    const isCurrent = sec.id === activeSection;
-                    return (
-                      <button
-                        key={sec.id}
-                        type="button"
-                        onClick={() => {
-                          onNavigateSection(sec.id);
-                          setNavMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-3 py-2.5 rounded-xl flex items-start gap-3 transition-all ${
-                          isCurrent
-                            ? "bg-[#F5B700]/15 border border-[#F5B700]/40 text-white"
-                            : "hover:bg-white/[0.06] text-white/70 border border-transparent"
-                        }`}
-                      >
-                        <span
-                          className={`font-mono text-xs font-black px-2 py-0.5 rounded-md mt-0.5 ${
-                            isCurrent
-                              ? "bg-[#F5B700] text-navy-950"
-                              : "bg-white/[0.06] text-[#F5B700]"
+            {/* Interactive Page/Section Indicator (01 / 04 — OVERVIEW) on Market Terminal */}
+            {isMarketRoute && onNavigateSection && (
+              <div ref={navDropdownRef} className="relative hidden lg:block">
+                <div className="flex items-center gap-2 bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-[#F5B700]/40 rounded-xl px-3 py-1.5 transition-all">
+                  {/* Direct Quick Number Pills 01-04 */}
+                  <div className="hidden xl:flex items-center gap-1 pr-2 border-r border-white/10">
+                    {NAV_SECTIONS.map((sec) => {
+                      const active = sec.id === activeSection;
+                      return (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => onNavigateSection(sec.id)}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition-all ${
+                            active
+                              ? "bg-[#F5B700] text-navy-950 shadow-gold"
+                              : "text-white/45 hover:text-white hover:bg-white/10"
                           }`}
+                          title={`Scroll ke ${sec.num} — ${sec.label}`}
                         >
                           {sec.num}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono text-xs font-bold tracking-wide text-white">
-                            {sec.num} / 04 — {sec.label}
-                          </div>
-                          <div className="text-[11px] text-white/50 truncate mt-0.5">
-                            {sec.shortDesc}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Active Section Dropdown Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setNavMenuOpen((prev) => !prev)}
+                    className="flex flex-col items-end text-right cursor-pointer"
+                    title="Klik untuk navigasi cepat antar seksi (01 - 04)"
+                  >
+                    <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-wider font-semibold text-white/90">
+                      <span className="text-[#F5B700] font-bold">
+                        {currentNav.num} / 04
+                      </span>
+                      <span className="text-white/40">—</span>
+                      <span className="text-white/80 uppercase">
+                        {currentNav.label}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-[#F5B700] transition-transform duration-200 ${
+                          navMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </div>
+                    {/* Dynamic Progress Bar (25%, 50%, 75%, 100%) */}
+                    <div className="w-full h-1 bg-white/10 rounded-full mt-1 overflow-hidden">
+                      <div
+                        className="h-full bg-[#F5B700] rounded-full transition-all duration-300"
+                        style={{ width: `${(currentNavIndex / 4) * 100}%` }}
+                      />
+                    </div>
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {/* Section Navigation Dropdown Menu */}
+                {navMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#0A192F]/95 border border-white/15 shadow-2xl backdrop-blur-2xl p-2 z-50 ring-1 ring-[#F5B700]/25 animate-in fade-in duration-150">
+                    <div className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-wider text-white/40 border-b border-white/[0.06] mb-1">
+                      Navigasi Cepat Halaman (01 / 04)
+                    </div>
+                    {NAV_SECTIONS.map((sec) => {
+                      const isCurrent = sec.id === activeSection;
+                      return (
+                        <button
+                          key={sec.id}
+                          type="button"
+                          onClick={() => {
+                            onNavigateSection(sec.id);
+                            setNavMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2.5 rounded-xl flex items-start gap-3 transition-all ${
+                            isCurrent
+                              ? "bg-[#F5B700]/15 border border-[#F5B700]/40 text-white"
+                              : "hover:bg-white/[0.06] text-white/70 border border-transparent"
+                          }`}
+                        >
+                          <span
+                            className={`font-mono text-xs font-black px-2 py-0.5 rounded-md mt-0.5 ${
+                              isCurrent
+                                ? "bg-[#F5B700] text-navy-950"
+                                : "bg-white/[0.06] text-[#F5B700]"
+                            }`}
+                          >
+                            {sec.num}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono text-xs font-bold tracking-wide text-white">
+                              {sec.num} / 04 — {sec.label}
+                            </div>
+                            <div className="text-[11px] text-white/50 truncate mt-0.5">
+                              {sec.shortDesc}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Watchlist Quick Button */}
-            <button
-              onClick={onOpenWatchlist}
-              className="relative p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#F5B700] transition-all"
-              title="Buka Watchlist"
-            >
-              <Star className="w-4 h-4" />
-              {watchlistCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#F5B700] text-navy-950 font-bold text-[10px] flex items-center justify-center">
-                  {watchlistCount}
-                </span>
-              )}
-            </button>
+            {onOpenWatchlist && (
+              <button
+                onClick={onOpenWatchlist}
+                className="relative p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#F5B700] transition-all"
+                title="Buka Watchlist"
+              >
+                <Star className="w-4 h-4" />
+                {watchlistCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#F5B700] text-navy-950 font-bold text-[10px] flex items-center justify-center">
+                    {watchlistCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* API Settings Button */}
-            <button
-              onClick={onOpenSettings}
-              className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#06B6D4] transition-all hidden sm:flex"
-              title="Pengaturan Data API"
-            >
-              <Sliders className="w-4 h-4" />
-            </button>
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-[#06B6D4] transition-all hidden sm:flex"
+                title="Pengaturan Data API"
+              >
+                <Sliders className="w-4 h-4" />
+              </button>
+            )}
 
             {/* Official Market State Badge */}
             <div
@@ -415,7 +509,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                       <Globe2 className="w-3.5 h-3.5 text-[#F5B700]" />
                       HASIL PENCARIAN GLOBAL YAHOO FINANCE (PRIORITAS BEI / IDX)
                     </span>
-                    {isSearching && <span className="text-[#F5B700]">Mencari...</span>}
+                    {isSearching && (
+                      <span className="text-[#F5B700]">Mencari...</span>
+                    )}
                   </div>
 
                   {liveQuotes.length > 0 ? (
@@ -469,13 +565,19 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                     ))
                   ) : !isSearching ? (
                     <div className="p-8 text-center text-white/50">
-                      <p>Menampilkan pencocokan langsung untuk &quot;{searchQuery.toUpperCase()}&quot;.</p>
+                      <p>
+                        Menampilkan pencocokan langsung untuk &quot;
+                        {searchQuery.toUpperCase()}&quot;.
+                      </p>
                       <button
                         type="button"
-                        onClick={() => handleSelect(searchQuery.trim().toUpperCase())}
+                        onClick={() =>
+                          handleSelect(searchQuery.trim().toUpperCase())
+                        }
                         className="mt-3 px-4 py-2 rounded-xl bg-[#F5B700] text-navy-950 font-mono font-bold text-xs shadow-gold"
                       >
-                        Analisis Ticker &quot;{searchQuery.trim().toUpperCase()}&quot; Sekarang →
+                        Analisis Ticker &quot;
+                        {searchQuery.trim().toUpperCase()}&quot; Sekarang →
                       </button>
                     </div>
                   ) : null}
@@ -496,7 +598,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                             rel="noopener noreferrer"
                             className="block p-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.06] text-xs text-white/80 hover:text-[#F5B700] transition-colors"
                           >
-                            <div className="font-medium line-clamp-1">{n.title}</div>
+                            <div className="font-medium line-clamp-1">
+                              {n.title}
+                            </div>
                             <div className="text-[10px] text-white/40 font-mono mt-0.5">
                               {n.publisher} · {n.publishedAtText}
                             </div>
@@ -509,8 +613,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
               ) : (
                 <>
                   <div className="px-3 py-1.5 text-[11px] font-mono text-white/40 flex items-center justify-between">
-                    <span>EMITEN POPULER MULTI-BURSA (KETIK UNTUK CARI SAHAM APA PUN DI DUNIA)</span>
-                    <span className="text-[#F5B700]">IDX · US · KRX · ASX · CRYPTO</span>
+                    <span>
+                      EMITEN POPULER MULTI-BURSA (KETIK UNTUK CARI SAHAM APA PUN
+                      DI DUNIA)
+                    </span>
+                    <span className="text-[#F5B700]">
+                      IDX · US · KRX · ASX · CRYPTO
+                    </span>
                   </div>
                   {defaultPresets.map((stock) => {
                     const isPositive = stock.changePercent >= 0;
@@ -518,7 +627,9 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                       <button
                         key={stock.id}
                         type="button"
-                        onClick={() => handleSelect(stock.yahooSymbol || stock.ticker)}
+                        onClick={() =>
+                          handleSelect(stock.yahooSymbol || stock.ticker)
+                        }
                         className="w-full p-3 rounded-xl flex items-center justify-between hover:bg-white/[0.06] transition-all text-left group"
                       >
                         <div className="flex items-center gap-3">
@@ -542,7 +653,11 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
 
                         <div className="text-right font-mono">
                           <div className="text-sm font-semibold text-white">
-                            {formatCurrency(stock.price, stock.currency, stock.currencySymbol)}
+                            {formatCurrency(
+                              stock.price,
+                              stock.currency,
+                              stock.currencySymbol
+                            )}
                           </div>
                           <div
                             className={`text-xs flex items-center justify-end gap-1 ${
@@ -568,8 +683,13 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
             </div>
 
             <div className="p-3 bg-[#061024] border-t border-white/10 text-[11px] text-white/40 flex items-center justify-between px-4">
-              <span>Debounce 300ms · Otomatis deteksi .JK untuk 4 huruf kode emiten BEI</span>
-              <span className="font-mono text-[#F5B700]">Yahoo Finance Search v1</span>
+              <span>
+                Debounce 300ms · Otomatis deteksi .JK untuk 4 huruf kode emiten
+                BEI
+              </span>
+              <span className="font-mono text-[#F5B700]">
+                Yahoo Finance Search v1
+              </span>
             </div>
           </div>
         </div>
