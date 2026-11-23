@@ -123,3 +123,55 @@ export interface RSIResult {
   signal: RSISignal;
   series: IndicatorPoint[];
 }
+
+export type PortfolioCurrency = "IDR" | "USD" | "KRW" | "AUD";
+
+export type PortfolioAssetType =
+  | "IDX"
+  | "US"
+  | "KRX"
+  | "ASX"
+  | "ETF"
+  | "CRYPTO"
+  | string;
+
+export interface PortfolioItem {
+  id: string;
+  ticker: string;
+  name: string;
+  exchange: string;
+  quantity: number;
+  avgBuyPrice: number;
+  currency: PortfolioCurrency | string;
+  assetType: PortfolioAssetType;
+}
+
+export interface PortfolioAllocationItem {
+  id: string;
+  ticker: string;
+  name: string;
+  exchange: string;
+  currency: string;
+  currencySymbol: string;
+  assetType: string;
+  quantity: number;
+  avgBuyPrice: number;
+  currentPrice: number;
+  marketValueOriginal: number;
+  costBasisOriginal: number;
+  pnlOriginal: number;
+  marketValueIDR: number;
+  costBasisIDR: number;
+  pnlIDR: number;
+  pnlPercent: number;
+  weightPercent: number;
+  color: string;
+}
+
+export interface PortfolioSummary {
+  totalEquityIDR: number;
+  totalCostIDR: number;
+  totalPnLIDR: number;
+  totalPnLPercent: number;
+  allocation: PortfolioAllocationItem[];
+}
