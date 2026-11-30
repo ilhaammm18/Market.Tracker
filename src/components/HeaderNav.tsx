@@ -17,6 +17,7 @@ import {
   Newspaper,
   Home,
   LineChart,
+  Briefcase,
 } from "lucide-react";
 import {
   StockData,
@@ -32,6 +33,8 @@ interface HeaderNavProps {
   onSelectStock: (ticker: string) => void;
   watchlistCount?: number;
   onOpenWatchlist?: () => void;
+  portfolioCount?: number;
+  onOpenPortfolio?: () => void;
   onOpenSettings?: () => void;
   isLiveUpdating?: boolean;
   activeSection?: NavSectionId;
@@ -75,6 +78,8 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
   onSelectStock,
   watchlistCount = 0,
   onOpenWatchlist,
+  portfolioCount = 0,
+  onOpenPortfolio,
   onOpenSettings,
   activeSection = "overview",
   onNavigateSection,
@@ -403,6 +408,24 @@ export const HeaderNav: React.FC<HeaderNavProps> = ({
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Portfolio Quick Button with Asset Count Badge */}
+            {onOpenPortfolio && (
+              <button
+                type="button"
+                onClick={onOpenPortfolio}
+                className="relative px-3 py-2 rounded-xl bg-[#F5B700]/10 hover:bg-[#F5B700]/20 border border-[#F5B700]/30 text-[#F5B700] font-mono text-xs font-bold flex items-center gap-1.5 transition-all"
+                title="Buka Multi-Asset Portfolio & PnL Tracker"
+              >
+                <Briefcase className="w-4 h-4 shrink-0" />
+                <span className="hidden md:inline">Portfolio</span>
+                {portfolioCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-[#F5B700] text-navy-950 font-extrabold text-[10px] leading-tight">
+                    {portfolioCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Watchlist Quick Button */}
