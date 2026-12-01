@@ -252,3 +252,77 @@ export function savePortfolio(items: PortfolioItem[]): void {
     // Ignore storage quota errors
   }
 }
+
+export type PortfolioFilterCategory = "ALL" | "IDX" | "GLOBAL" | "CRYPTO";
+
+export interface PortfolioCategorySubtotal {
+  category: PortfolioFilterCategory;
+  count: number;
+  subtotalEquityIDR: number;
+  subtotalCostIDR: number;
+  subtotalPnLIDR: number;
+  subtotalPnLPercent: number;
+  items: PortfolioAllocationItem[];
+}
+
+/**
+ * Determines whether a portfolio allocation entry belongs to a given filter category
+ */
+export function matchesPortfolioCategory(
+  item: PortfolioAllocationItem,
+  category: PortfolioFilterCategory
+): boolean {
+  if (category === "ALL") return true;
+
+  const exch = item.exchange.toUpperCase();
+  const asset = item.assetType.toUpperCase();
+  const ticker = item.ticker.toUpperCase();
+  const isCrypto =
+    exch === "CRYPTO" || asset === "CRYPTO" || ticker.endsWith("-USD");
+  const isIdx =
+    !isCrypto &&
+    (exch === "IDX" ||
+      asset === "IDX" ||
+      ticker.endsWith(".JK") ||
+      item.currency.toUpperCase() === "IDR");
+
+  if (category === "CRYPTO") return isCrypto;
+  if (category === "IDX") return isIdx;
+  if (category === "GLOBAL") return !isCrypto && !isIdx;
+
+  return true;
+}
+
+/**
+ * Filters portfolio allocation items by category and computes category subtotals in IDR
+ */
+export function filterAndSummarizeByCategory(
+  allocation: PortfolioAllocationItem[],
+  category: PortfolioFilterCategory
+): PortfolioCategorySubtotal {
+  const filtered = allocation.filter((item) =>
+    matchesPortfolioCategory(item, category)
+  );
+
+  let subtotalEquityIDR = 0;
+  let subtotalCostIDR = 0;
+
+  for (const item of filtered) {
+    subtotalEquityIDR += item.marketValueIDR;
+    subtotalCostIDR += item.costBasisIDR;
+  }
+
+  const subtotalPnLIDR = subtotalEquityIDR - subtotalCostIDR;
+  const subtotalPnLPercent =
+    subtotalCostIDR > 0 ? (subtotalPnLIDR / subtotalCostIDR) * 100 : 0;
+
+  return {
+    category,
+    count: filtered.length,
+    subtotalEquityIDR: Math.round(subtotalEquityIDR),
+    subtotalCostIDR: Math.round(subtotalCostIDR),
+    subtotalPnLIDR: Math.round(subtotalPnLIDR),
+    subtotalPnLPercent: Number(subtotalPnLPercent.toFixed(2)),
+    items: filtered,
+  };
+}
