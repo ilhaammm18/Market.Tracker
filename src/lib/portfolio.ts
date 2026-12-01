@@ -326,3 +326,131 @@ export function filterAndSummarizeByCategory(
     items: filtered,
   };
 }
+
+/**
+ * Generates a formatted JSON string containing portfolio summary and raw positions
+ */
+export function exportPortfolioToJSON(
+  summary: PortfolioSummary,
+  items: PortfolioItem[]
+): string {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    application: "Market.Tracker v1.3.0",
+    baseCurrency: "IDR",
+    fxReferenceRates: FX_RATES_TO_IDR,
+    summary: {
+      totalEquityIDR: summary.totalEquityIDR,
+      totalCostIDR: summary.totalCostIDR,
+      totalPnLIDR: summary.totalPnLIDR,
+      totalPnLPercent: summary.totalPnLPercent,
+      totalPositions: items.length,
+    },
+    positions: summary.allocation.map((a) => ({
+      ticker: a.ticker,
+      name: a.name,
+      exchange: a.exchange,
+      currency: a.currency,
+      quantity: a.quantity,
+      avgBuyPrice: a.avgBuyPrice,
+      currentPrice: a.currentPrice,
+      marketValueOriginal: Number(a.marketValueOriginal.toFixed(2)),
+      marketValueIDR: Math.round(a.marketValueIDR),
+      costBasisIDR: Math.round(a.costBasisIDR),
+      pnlIDR: Math.round(a.pnlIDR),
+      pnlPercent: Number(a.pnlPercent.toFixed(2)),
+      weightPercent: Number(a.weightPercent.toFixed(2)),
+    })),
+  };
+
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Generates a RFC-compliant CSV string of the current portfolio allocation and PnL
+ */
+export function exportPortfolioToCSV(summary: PortfolioSummary): string {
+  const headers = [
+    "Ticker",
+    "Name",
+    "Exchange",
+    "Currency",
+    "Quantity",
+    "AvgBuyPrice",
+    "CurrentPrice",
+    "MarketValueOriginal",
+    "MarketValueIDR",
+    "CostBasisIDR",
+    "PnL_IDR",
+    "PnL_Percent",
+    "Weight_Percent",
+  ];
+
+  const escapeCsvCell = (val: string | number): string => {
+    const str = String(val ?? "");
+    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows = summary.allocation.map((item) =>
+    [
+      item.ticker,
+      item.name,
+      item.exchange,
+      item.currency,
+      item.quantity,
+      item.avgBuyPrice,
+      item.currentPrice,
+      item.marketValueOriginal.toFixed(2),
+      Math.round(item.marketValueIDR),
+      Math.round(item.costBasisIDR),
+      Math.round(item.pnlIDR),
+      item.pnlPercent.toFixed(2),
+      item.weightPercent.toFixed(2),
+    ]
+      .map(escapeCsvCell)
+      .join(",")
+  );
+
+  return [headers.join(","), ...rows].join("\n");
+}
+
+/**
+ * Triggers a browser file download for JSON or CSV portfolio exports
+ */
+export function triggerPortfolioDownload(
+  format: "json" | "csv",
+  summary: PortfolioSummary,
+  items: PortfolioItem[]
+): boolean {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return false;
+  }
+
+  try {
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    const isJson = format === "json";
+    const content = isJson
+      ? exportPortfolioToJSON(summary, items)
+      : exportPortfolioToCSV(summary);
+    const mimeType = isJson
+      ? "application/json;charset=utf-8"
+      : "text/csv;charset=utf-8";
+    const filename = `market-tracker-portfolio-${dateStamp}.${format}`;
+
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
