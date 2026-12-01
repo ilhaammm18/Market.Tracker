@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ---
 
+## [1.3.0] - 2026-12-01
+
+### Added
+- **Multi-Asset Portfolio & Multi-Currency PnL Tracker (`src/lib/portfolio.ts`, `src/types/stock.ts`)**:
+  - Defined `PortfolioItem`, `PortfolioAllocationItem`, and `PortfolioSummary` interfaces for strict multi-currency portfolio tracking.
+  - Built automatic foreign exchange conversion engine (`FX_RATES_TO_IDR`) converting `USD`, `AUD`, and `KRW` positions into Indonesian Rupiah (`IDR`) equivalents.
+  - Implemented real-time floating Profit & Loss (`PnL`) calculation (nominal IDR, original currency, and percentage return) per asset and across the combined portfolio, along with asset allocation weight percentages.
+  - Added `localStorage` persistence (`loadPortfolio` and `savePortfolio`) pre-seeded with 3 popular global assets (`BBCA.JK`, `NVDA`, `BTC-USD`).
+- **Interactive Portfolio Slide-Over Drawer (`src/components/PortfolioDrawer.tsx`)**:
+  - Created a glassmorphic Dark-Mode Navy & Gold slide-over drawer displaying Total Portfolio Equity (IDR), Combined Cost Basis, Total Floating PnL, and a segmented multi-color asset allocation progress bar.
+  - Added position management form supporting new asset entry, automatic weighted-average buy price calculation on existing tickers, position editing, removal, and one-click demo seed reset.
+- **Global Header & Route Integration (`src/components/HeaderNav.tsx`, `src/app/page.tsx`, `src/app/market/page.tsx`)**:
+  - Added a dedicated **Portfolio** trigger button with active asset count badge in `HeaderNav`, synchronized with live market prices across both the Landing Page (`/`) and Market Terminal (`/market`).
+
+---
+
 ## [1.2.0] - 2026-11-18
 
 ### Added
