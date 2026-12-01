@@ -15,6 +15,9 @@ import {
   ArrowUpRight,
   Coins,
   Check,
+  Download,
+  FileJson,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   PortfolioItem,
@@ -29,6 +32,7 @@ import {
   PortfolioFilterCategory,
   filterAndSummarizeByCategory,
   matchesPortfolioCategory,
+  triggerPortfolioDownload,
 } from "@/lib/portfolio";
 import { formatCurrency } from "@/lib/utils";
 
@@ -57,6 +61,7 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] =
     useState<PortfolioFilterCategory>("ALL");
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
 
   const summary = useMemo(
     () => calculatePortfolioSummary(portfolio, knownStocks),
@@ -216,6 +221,20 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
   const handleResetDemo = () => {
     onUpdatePortfolio(DEFAULT_PORTFOLIO_ITEMS);
     resetForm();
+  };
+
+  const handleExport = (format: "json" | "csv") => {
+    const ok = triggerPortfolioDownload(format, summary, portfolio);
+    if (ok) {
+      setExportFeedback(
+        format === "json"
+          ? "✓ File JSON berhasil diunduh"
+          : "✓ File CSV berhasil diunduh"
+      );
+      setTimeout(() => {
+        setExportFeedback(null);
+      }, 2600);
+    }
   };
 
   return (
@@ -778,10 +797,49 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
               </div>
             </div>
 
-            {/* 3. Drawer Footer */}
-            <div className="p-4 border-t border-white/10 bg-[#040914]/90 text-[11px] font-mono text-white/40 flex items-center justify-between">
-              <span>Disimpan otomatis di LocalStorage browser</span>
-              <span className="text-[#F5B700]">Multi-Currency PnL v1.2</span>
+            {/* 3. Drawer Footer with JSON/CSV Export Actions & Download Feedback */}
+            <div className="p-4 border-t border-white/10 bg-[#040914]/90 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-mono text-white/50 flex items-center gap-1.5">
+                  <Download className="w-3.5 h-3.5 text-[#F5B700]" />
+                  <span>Ekspor Portofolio:</span>
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={portfolio.length === 0}
+                    onClick={() => handleExport("json")}
+                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#F5B700]/20 disabled:opacity-40 border border-white/10 hover:border-[#F5B700]/40 text-[11px] font-mono font-bold text-white hover:text-[#F5B700] flex items-center gap-1.5 transition-all"
+                    title="Unduh backup portofolio dalam format JSON"
+                  >
+                    <FileJson className="w-3.5 h-3.5 text-[#F5B700]" />
+                    <span>Export JSON</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={portfolio.length === 0}
+                    onClick={() => handleExport("csv")}
+                    className="px-2.5 py-1.5 rounded-xl bg-white/[0.04] hover:bg-cyan-500/20 disabled:opacity-40 border border-white/10 hover:border-cyan-500/40 text-[11px] font-mono font-bold text-white hover:text-cyan-300 flex items-center gap-1.5 transition-all"
+                    title="Unduh laporan portofolio dalam format CSV (Excel/Sheets)"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Export CSV</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] font-mono text-white/40 flex items-center justify-between">
+                {exportFeedback ? (
+                  <span className="text-emerald-400 font-bold animate-pulse">
+                    {exportFeedback}
+                  </span>
+                ) : (
+                  <span>Disimpan otomatis di LocalStorage browser</span>
+                )}
+                <span className="text-[#F5B700]">Multi-Currency PnL v1.3</span>
+              </div>
             </div>
           </motion.aside>
         </>
