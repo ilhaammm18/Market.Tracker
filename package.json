@@ -1,6 +1,6 @@
 {
   "name": "global-stock-intelligence",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Institutional-Grade Global Market Intelligence & Stock Tracking Web Application with real-time multi-exchange data, technical indicators (SMA 20, EMA 50, RSI 14), head-to-head stock comparison, IDX lot calculator, and live financial news.",
   "author": "Muhammad Nur Ilham",
   "repository": {
