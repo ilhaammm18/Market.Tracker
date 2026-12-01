@@ -26,6 +26,9 @@ import {
   FX_RATES_TO_IDR,
   resolveStockForPortfolio,
   DEFAULT_PORTFOLIO_ITEMS,
+  PortfolioFilterCategory,
+  filterAndSummarizeByCategory,
+  matchesPortfolioCategory,
 } from "@/lib/portfolio";
 import { formatCurrency } from "@/lib/utils";
 
@@ -52,11 +55,25 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
   const [currencyInput, setCurrencyInput] =
     useState<PortfolioCurrency>("IDR");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] =
+    useState<PortfolioFilterCategory>("ALL");
 
   const summary = useMemo(
     () => calculatePortfolioSummary(portfolio, knownStocks),
     [portfolio, knownStocks]
   );
+
+  const categorySubtotal = useMemo(
+    () => filterAndSummarizeByCategory(summary.allocation, activeCategory),
+    [summary.allocation, activeCategory]
+  );
+
+  const categoryTabs: { id: PortfolioFilterCategory; label: string }[] = [
+    { id: "ALL", label: "ALL" },
+    { id: "IDX", label: "IDX" },
+    { id: "GLOBAL", label: "US / Global" },
+    { id: "CRYPTO", label: "CRYPTO" },
+  ];
 
   const isTotalPositive = summary.totalPnLIDR >= 0;
 
@@ -490,30 +507,108 @@ export const PortfolioDrawer: React.FC<PortfolioDrawerProps> = ({
                 </button>
               </form>
 
-              {/* C. Daftar Aset yang Dimiliki */}
-              <div className="space-y-2.5">
+              {/* C. Daftar Aset yang Dimiliki + Filter Kategori Aset */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between px-1">
                   <span className="text-xs font-mono font-bold text-white/70 uppercase tracking-wider">
-                    Daftar Kepemilikan Aset ({summary.allocation.length})
+                    Daftar Kepemilikan Aset ({categorySubtotal.count})
                   </span>
                   <span className="text-[10px] font-mono text-white/40">
                     Klik ticker untuk analisis grafik
                   </span>
                 </div>
 
-                {summary.allocation.length === 0 ? (
+                {/* Asset Category Filter Tabs (ALL, IDX, US / Global, CRYPTO) */}
+                <div className="grid grid-cols-4 gap-1.5 p-1 rounded-xl bg-[#040914]/90 border border-white/10">
+                  {categoryTabs.map((tab) => {
+                    const countInTab =
+                      tab.id === "ALL"
+                        ? summary.allocation.length
+                        : summary.allocation.filter((item) =>
+                            matchesPortfolioCategory(item, tab.id)
+                          ).length;
+                    const isActive = activeCategory === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveCategory(tab.id)}
+                        className={`px-2 py-1.5 rounded-lg font-mono text-[10px] font-bold flex items-center justify-center gap-1 transition-all ${
+                          isActive
+                            ? "bg-[#F5B700] text-navy-950 shadow-gold"
+                            : "text-white/55 hover:text-white hover:bg-white/[0.06]"
+                        }`}
+                      >
+                        <span className="truncate">{tab.label}</span>
+                        <span
+                          className={`px-1 rounded text-[9px] ${
+                            isActive
+                              ? "bg-navy-950/20 text-navy-950"
+                              : "bg-white/10 text-white/60"
+                          }`}
+                        >
+                          {countInTab}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Category Subtotal Banner (When filtered to IDX, US / Global, or CRYPTO) */}
+                {activeCategory !== "ALL" && categorySubtotal.count > 0 && (
+                  <div className="px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-xs font-mono">
+                    <div>
+                      <span className="text-[10px] text-white/45 block">
+                        Subtotal Kategori ({activeCategory})
+                      </span>
+                      <span className="font-bold text-white">
+                        {formatCurrency(
+                          categorySubtotal.subtotalEquityIDR,
+                          "IDR",
+                          "Rp"
+                        )}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-white/45 block">
+                        Subtotal PnL
+                      </span>
+                      <span
+                        className={`font-bold ${
+                          categorySubtotal.subtotalPnLIDR >= 0
+                            ? "text-emerald-400"
+                            : "text-rose-400"
+                        }`}
+                      >
+                        {categorySubtotal.subtotalPnLIDR >= 0 ? "+" : ""}
+                        {formatCurrency(
+                          categorySubtotal.subtotalPnLIDR,
+                          "IDR",
+                          "Rp"
+                        )}{" "}
+                        ({categorySubtotal.subtotalPnLIDR >= 0 ? "+" : ""}
+                        {categorySubtotal.subtotalPnLPercent.toFixed(2)}%)
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {categorySubtotal.items.length === 0 ? (
                   <div className="rounded-2xl p-8 bg-white/[0.02] border border-white/[0.06] text-center space-y-2">
                     <Briefcase className="w-8 h-8 text-white/20 mx-auto" />
                     <p className="text-sm font-semibold text-white/60">
-                      Portofolio Masih Kosong
+                      {activeCategory === "ALL"
+                        ? "Portofolio Masih Kosong"
+                        : `Tidak Ada Aset di Kategori ${activeCategory}`}
                     </p>
                     <p className="text-xs text-white/40 max-w-xs mx-auto">
-                      Tambahkan aset di form atas atau klik tombol reset untuk
-                      memuat 3 aset contoh (BBCA.JK, NVDA, BTC-USD).
+                      {activeCategory === "ALL"
+                        ? "Tambahkan aset di form atas atau klik tombol reset untuk memuat 3 aset contoh (BBCA.JK, NVDA, BTC-USD)."
+                        : "Pilih tab kategori lain atau tambahkan posisi aset baru melalui form di atas."}
                     </p>
                   </div>
                 ) : (
-                  summary.allocation.map((item) => {
+                  categorySubtotal.items.map((item) => {
                     const isProfit = item.pnlIDR >= 0;
                     const isIdxLot =
                       item.currency === "IDR" ||
