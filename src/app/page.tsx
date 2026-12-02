@@ -6,10 +6,16 @@ import { HeaderNav } from "@/components/HeaderNav";
 import { GlobalTickerTape } from "@/components/GlobalTickerTape";
 import { LandingSection } from "@/components/LandingSection";
 import { WatchlistDrawer } from "@/components/WatchlistDrawer";
+import { PortfolioDrawer } from "@/components/PortfolioDrawer";
 import { ApiSettingsModal } from "@/components/ApiSettingsModal";
 import { Footer } from "@/components/Footer";
-import { StockData, TickerTapeItem } from "@/types/stock";
+import { StockData, TickerTapeItem, PortfolioItem } from "@/types/stock";
 import { MOCK_STOCKS, INITIAL_TICKER_TAPE } from "@/data/mockStocks";
+import {
+  loadPortfolio,
+  savePortfolio,
+  DEFAULT_PORTFOLIO_ITEMS,
+} from "@/lib/portfolio";
 
 export default function HomePage() {
   const router = useRouter();
@@ -25,10 +31,14 @@ export default function HomePage() {
     "NVDA",
     "BTC",
   ]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>(
+    DEFAULT_PORTFOLIO_ITEMS
+  );
   const [watchlistOpen, setWatchlistOpen] = useState<boolean>(false);
+  const [portfolioOpen, setPortfolioOpen] = useState<boolean>(false);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
-  // Load watchlist from LocalStorage
+  // Load watchlist & portfolio from LocalStorage on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -42,10 +52,18 @@ export default function HomePage() {
       } catch {
         // Fallback
       }
+
+      const loadedPortfolio = loadPortfolio();
+      setPortfolio(loadedPortfolio);
     }
   }, []);
 
-  // Fetch real-time ticker tape & hydrate snapshot cards
+  const handleUpdatePortfolio = (nextItems: PortfolioItem[]) => {
+    setPortfolio(nextItems);
+    savePortfolio(nextItems);
+  };
+
+  // Fetch real-time ticker tape & hydrate snapshot cards + portfolio prices
   const fetchTape = useCallback(async () => {
     try {
       const res = await fetch("/api/stock?action=tape");
@@ -103,12 +121,14 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#040914] text-slate-100 flex flex-col justify-between selection:bg-[#F5B700] selection:text-navy-950">
-      {/* 1. Header Navigation with Route Links (Home vs Market Terminal) & Global Search */}
+      {/* 1. Header Navigation with Route Links (Home vs Market Terminal), Portfolio & Global Search */}
       <HeaderNav
         activeStock={featuredStock}
         onSelectStock={handleNavigateToMarket}
         watchlistCount={watchlist.length}
         onOpenWatchlist={() => setWatchlistOpen(true)}
+        portfolioCount={portfolio.length}
+        onOpenPortfolio={() => setPortfolioOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 
@@ -126,6 +146,15 @@ export default function HomePage() {
       />
 
       {/* Drawers & Modals */}
+      <PortfolioDrawer
+        isOpen={portfolioOpen}
+        onClose={() => setPortfolioOpen(false)}
+        portfolio={portfolio}
+        knownStocks={knownStocks}
+        onUpdatePortfolio={handleUpdatePortfolio}
+        onSelectStock={handleNavigateToMarket}
+      />
+
       <WatchlistDrawer
         isOpen={watchlistOpen}
         onClose={() => setWatchlistOpen(false)}
